@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { decodeEvents, decodeKeys, type Mouse } from './term';
+import { decodeEvents, decodeKeys, incompleteEscapeStart, type Mouse } from './term';
 import { gestureStep, type Gesture, type GestureAction } from './gesture';
 import { parseArgs } from './index';
 
@@ -102,22 +102,73 @@ describe('gestureStep', () => {
     ]);
   });
 
-  test('horizontal swipe left/right, tolerating a row of wobble', () => {
-    expect(run([{ kind: 'press', x: 30, y: 8 }, { kind: 'drag', x: 20, y: 9 }, { kind: 'release', x: 12, y: 9 }])).toEqual([
-      { type: 'scroll', dy: -1 },
-      { type: 'swipe', dir: 'left' },
+  test('horizontal swipe locks the axis: no scroll jitter, wobble tolerated', () => {
+    // real finger swipe: crosses several rows on the way — must still swipe,
+    // and must NOT emit any scroll (this was the Moshi mouse-mode failure)
+    const actions = run([
+      { kind: 'press', x: 30, y: 8 },
+      { kind: 'drag', x: 27, y: 9 },
+      { kind: 'drag', x: 22, y: 10 },
+      { kind: 'drag', x: 16, y: 9 },
+      { kind: 'release', x: 12, y: 10 },
     ]);
+    expect(actions).toEqual([{ type: 'swipe', dir: 'left' }]);
+  });
+
+  test('fast flick reported as bare press+release still swipes', () => {
     expect(run([{ kind: 'press', x: 10, y: 8 }, { kind: 'release', x: 22, y: 8 }])).toEqual([{ type: 'swipe', dir: 'right' }]);
   });
 
-  test('a scrolled drag never doubles as a swipe; drag with no press is ignored', () => {
+  test('a vertically-locked drag never doubles as a swipe; drag with no press is ignored', () => {
     const actions = run([
       { kind: 'press', x: 10, y: 20 },
       { kind: 'drag', x: 14, y: 14 },
       { kind: 'release', x: 22, y: 12 },
     ]);
     expect(actions.filter((a) => a && a.type === 'swipe')).toEqual([]);
+    expect(actions.some((a) => a && a.type === 'scroll')).toBe(true);
     expect(run([{ kind: 'drag', x: 5, y: 5 }])).toEqual([]);
+  });
+
+  test('sub-threshold wobble emits nothing until an axis locks', () => {
+    const actions = run([
+      { kind: 'press', x: 10, y: 10 },
+      { kind: 'drag', x: 11, y: 10 },
+      { kind: 'drag', x: 10, y: 11 },
+    ]);
+    expect(actions).toEqual([]);
+  });
+});
+
+describe('incompleteEscapeStart — split-chunk carry-over', () => {
+  test('holds back a partial SGR mouse report', () => {
+    expect(incompleteEscapeStart('\x1b[<32;12')).toBe(0);
+    expect(incompleteEscapeStart('j\x1b[<32;12;7')).toBe(1);
+    expect(incompleteEscapeStart('\x1b[')).toBe(0);
+    expect(incompleteEscapeStart('\x1bO')).toBe(0);
+  });
+
+  test('complete sequences pass whole; a chunk-final ESC is held for the timeout', () => {
+    expect(incompleteEscapeStart('\x1b[A')).toBe(3);
+    expect(incompleteEscapeStart('\x1b[<0;12;5M')).toBe(10);
+    expect(incompleteEscapeStart('j\x1b')).toBe(1); // ESC key vs split head — Term's timer decides
+    expect(incompleteEscapeStart('jkq')).toBe(3);
+  });
+
+  test('reassembled fragments decode with no digit leaks', () => {
+    const whole = '\x1b[<32;12;7M';
+    for (let cut = 1; cut < whole.length; cut++) {
+      const head = whole.slice(0, cut);
+      const start = incompleteEscapeStart(head);
+      const carried = head.slice(start) + whole.slice(cut);
+      const events = [...decodeEvents(head.slice(0, start)), ...decodeEvents(carried)];
+      expect(events).toEqual([{ kind: 'mouse', mouse: { kind: 'drag', x: 11, y: 6 } }]);
+    }
+  });
+
+  test('an over-long ESC tail is flushed, not buffered forever', () => {
+    const junk = '\x1b[' + '9;'.repeat(20);
+    expect(incompleteEscapeStart(junk)).toBe(junk.length);
   });
 });
 

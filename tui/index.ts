@@ -181,11 +181,13 @@ async function main(): Promise<void> {
     switch (key) {
       case 'right':
       case 'l':
+      case 'n': // single-key next/prev aliases: bindable as Moshi swipe gestures
       case 'tab':
         update(cycleTab(state, 1));
         break;
       case 'left':
       case 'h':
+      case 'p':
       case 'shift-tab':
         update(cycleTab(state, -1));
         break;

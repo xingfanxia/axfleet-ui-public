@@ -40,12 +40,20 @@ bun run tui -- --compat  # force 256-color if your terminal lacks truecolor
 bun run verify           # typecheck + 129 tests
 ```
 
-Keys: `1-7` / `←→` / `tab` switch tabs · `j/k` move or scroll · `t` cycles the
-token range · `r` refreshes · `q`/`esc` quits. Mouse and touch work too (SGR
-mouse reporting): tap a tab label or a fleet/VPN row to select it, scroll with
-the wheel or a drag, and swipe horizontally to switch tabs — which is how it's
-driven from phone terminals like Moshi. The layout is responsive down to
-~45-column widths (Moshi portrait): rows stack instead of truncating.
+Keys: `1-7` / `←→` / `tab` / `n`/`p` switch tabs · `j/k` move or scroll · `t`
+cycles the token range · `r` refreshes · `q`/`esc` quits. Mouse and touch work
+too (SGR mouse reporting): tap a tab label or a fleet/VPN row to select it,
+scroll with the wheel or a drag, and a horizontally-locked drag-swipe switches
+tabs. The layout is responsive down to ~45-column widths (Moshi portrait):
+rows stack instead of truncating.
+
+**Moshi note**: Moshi's plain horizontal swipe is an app-level gesture (it
+sends a configurable key sequence — by default aimed at tmux/Zellij/Herdr
+tabs), so it never reaches a TUI as mouse data. Two ways to swipe-switch tabs
+here: bind Moshi's swipe gestures to the single keys `n` (next) and `p`
+(prev) under Settings → Gestures, or use Moshi's Mouse Mode, where press-drag
+is forwarded to the TUI and the built-in drag-swipe recognizer takes over.
+Vertical swipes and taps work out of the box either way.
 
 ## The seven tabs
 
@@ -58,6 +66,13 @@ driven from phone terminals like Moshi. The layout is responsive down to
 | **Accounts** | Provider account usage deduped across hosts (5h/7d/opus window bars, ccu-style), per-host daemon lines with switch forecasts, machine-wide token feeds, codex per-host snapshots with freshness grading, and per-host auth posture |
 | **Gateways** | App-level health that "container is Up" misses: omni per-source sync freshness (the shared ok/flaky/syncing/stale/dead classifier), embed-queue backlog, New API channel health, Factorio server telemetry, newsletter rollups |
 | **Alerts** | Active problems annotated with push-delivery status, the out-of-band DM log (delivered/failed, active/resolved), endpoint health, and the rolling event log |
+
+## Building your own
+
+The full methodology — architecture, ANSI width math, diffed painting, input
+decoding (incl. what phone terminals actually send), gesture recognition,
+hit-testing, narrow-mode rules, and the testing strategy — is written up for
+reuse in [docs/tui-methodology.md](docs/tui-methodology.md).
 
 ## Architecture (what's real here)
 

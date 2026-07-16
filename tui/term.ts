@@ -119,9 +119,34 @@ export function decodeKeys(chunk: string): Key[] {
   return decodeEvents(chunk).flatMap((e) => (e.kind === 'key' ? [e.key] : []));
 }
 
+/**
+ * Index where a trailing POSSIBLY-INCOMPLETE escape sequence begins, or
+ * s.length. Fast drags flood dozens of SGR reports and mosh/SSH can split one
+ * across read chunks — without holding the fragment back, `\x1b[<32;12` +
+ * `;5M` decodes as garbage AND leaks the digit '5' as a tab-switch key (or
+ * worse: a chunk split right after the ESC byte reads as the ESC key → quit).
+ * The held fragment is disambiguated by Term's escape timeout: if no
+ * continuation arrives within ESC_FLUSH_MS it's flush-decoded as-is (a lone
+ * `\x1b` then becomes the ESC key). A "sequence" longer than 24 cells isn't
+ * one — flushed immediately rather than buffered as junk.
+ */
+export function incompleteEscapeStart(s: string): number {
+  const i = s.lastIndexOf('\x1b');
+  if (i === -1 || s.length - i > 24) return s.length;
+  const tail = s.slice(i);
+  if (tail === '\x1b' || /^\x1b(\[[<0-9;]*|O)$/.test(tail)) return i;
+  return s.length;
+}
+
+/** How long a trailing escape fragment may wait for its continuation. */
+export const ESC_FLUSH_MS = 40;
+
 export class Term {
   private prev: string[] = [];
   private entered = false;
+  /** trailing escape-sequence fragment held over from the previous stdin chunk */
+  private pending = '';
+  private escTimer: ReturnType<typeof setTimeout> | null = null;
 
   get cols(): number {
     return process.stdout.columns || 80;
@@ -138,10 +163,30 @@ export class Term {
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk: string | Buffer) => {
-      for (const e of decodeEvents(chunk.toString())) {
+    const dispatch = (input: string): void => {
+      for (const e of decodeEvents(input)) {
         if (e.kind === 'key') ev.onKey(e.key);
         else ev.onMouse?.(e.mouse);
+      }
+    };
+    process.stdin.on('data', (chunk: string | Buffer) => {
+      if (this.escTimer) {
+        clearTimeout(this.escTimer);
+        this.escTimer = null;
+      }
+      const data = this.pending + chunk.toString();
+      const cut = incompleteEscapeStart(data);
+      this.pending = data.slice(cut);
+      dispatch(data.slice(0, cut));
+      if (this.pending) {
+        // Escape timeout: a fragment whose continuation never comes is real
+        // input (a lone ESC = the ESC key), not a split sequence — flush it.
+        this.escTimer = setTimeout(() => {
+          this.escTimer = null;
+          const held = this.pending;
+          this.pending = '';
+          dispatch(held);
+        }, ESC_FLUSH_MS);
       }
     });
     process.stdout.on('resize', () => {
@@ -153,6 +198,10 @@ export class Term {
   exit(): void {
     if (!this.entered) return;
     this.entered = false;
+    if (this.escTimer) {
+      clearTimeout(this.escTimer);
+      this.escTimer = null;
+    }
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     process.stdin.pause();
     process.stdout.write(MOUSE_OFF + SHOW_CURSOR + LEAVE_ALT);
