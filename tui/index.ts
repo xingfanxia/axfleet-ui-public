@@ -168,7 +168,24 @@ async function main(): Promise<void> {
     else update(scrollBy(state, delta, Math.max(0, bodyTotal - (term.rows - 4))));
   };
 
+  // tmux/herdr-style prefix chord: Ctrl-B then n/p/digit. This is what Moshi's
+  // swipe gesture actually emits once it detects a "herdr" session (see README
+  // Moshi note) — and it matches mux muscle memory everywhere else.
+  let prefixAt = 0;
   const onKey = (key: Key): void => {
+    if (key === 'ctrl-b') {
+      prefixAt = Date.now();
+      return;
+    }
+    if (prefixAt && Date.now() - prefixAt < 2_000) {
+      prefixAt = 0;
+      const digit = Number(key);
+      if (key === 'n') update(cycleTab(state, 1));
+      else if (key === 'p') update(cycleTab(state, -1));
+      else if (digit >= 1 && digit <= TABS.length) update(setTab(state, TABS[digit - 1] ?? 'fleet'));
+      // any other key after the prefix is swallowed, tmux-style
+      return;
+    }
     if (key === 'q' || key === 'esc' || key === 'ctrl-c') {
       shutdown(0);
       return;

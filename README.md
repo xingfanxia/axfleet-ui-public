@@ -47,15 +47,19 @@ scroll with the wheel or a drag, and a horizontally-locked drag-swipe switches
 tabs. The layout is responsive down to ~45-column widths (Moshi portrait):
 rows stack instead of truncating.
 
-**Moshi note**: Moshi's plain horizontal swipe never reaches a TUI as mouse
-data — it's hardwired to Moshi's multiplexer integration (live detection of
-tmux/Zellij/Herdr via remote CLI probes, then it sends that multiplexer's
-tab-switch chord; in any other program it reports "no active window", and it
-cannot be bound to custom keys). To switch tabs here from a phone: tap the
-tab labels (zero config), use the D-pad `←`/`→` (already mapped) or put
-`n`/`p` on custom D-pad slots, or enable Mouse Mode — press-drag is then
-forwarded to the TUI and the built-in drag-swipe recognizer takes over.
-Vertical swipes and taps work out of the box either way.
+**Moshi note** (protocol reverse-engineered + verified 2026-07): Moshi's
+plain horizontal swipe never reaches a TUI as mouse data. It is two-layer:
+an SSH preflight (`command -v tmux/zellij/herdr` + session listing) drives
+the picker, and live "in a multiplexer right now" detection — the thing that
+arms swipe — is the `moshi-hook` daemon doing a literal env read of
+`$TMUX_PANE` / `$ZELLIJ` / `$HERDR_ENV` (precedence in that order). On
+detection, swipe sends that multiplexer's prefix chord (`Ctrl-B n`/`p` for
+tmux/Herdr). So a TUI can opt in by impersonation: launch with
+`HERDR_ENV=1 HERDR_SESSION=<name>` in a **plain (non-tmux) session** with
+moshi-hook serving, and interpret `Ctrl-B n/p` — which this TUI does (the
+chord also just works as mux muscle memory anywhere). Zero-config
+alternatives: tap the tab labels, D-pad `←`/`→`, `n`/`p` keys, or Mouse Mode
+drag-swipe. Vertical swipes and taps work out of the box either way.
 
 ## The seven tabs
 

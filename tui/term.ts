@@ -13,6 +13,7 @@ export type Key =
   | 'shift-tab'
   | 'enter'
   | 'esc'
+  | 'ctrl-b'
   | 'ctrl-c'
   | string; // plain printable chars come through as themselves
 
@@ -74,6 +75,11 @@ export function decodeEvents(chunk: string): TermEvent[] {
     const c = chunk[i]!;
     if (c === '\x03') {
       key('ctrl-c');
+      i++;
+    } else if (c === '\x02') {
+      // tmux/herdr prefix — Moshi's swipe gesture sends <prefix> n/p when it
+      // detects a multiplexer, so speaking the chord makes swipe reachable.
+      key('ctrl-b');
       i++;
     } else if (c === '\x1b') {
       const rest = chunk.slice(i);

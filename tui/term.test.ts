@@ -13,8 +13,9 @@ describe('decodeKeys', () => {
     expect(decodeKeys('\x1bOA\x1bOB')).toEqual(['up', 'down']);
   });
 
-  test('ctrl-c, tab, shift-tab, enter', () => {
+  test('ctrl-c, ctrl-b prefix, tab, shift-tab, enter', () => {
     expect(decodeKeys('\x03')).toEqual(['ctrl-c']);
+    expect(decodeKeys('\x02n')).toEqual(['ctrl-b', 'n']); // Moshi herdr-swipe chord
     expect(decodeKeys('\t')).toEqual(['tab']);
     expect(decodeKeys('\x1b[Z')).toEqual(['shift-tab']);
     expect(decodeKeys('\r')).toEqual(['enter']);
