@@ -46,6 +46,12 @@ const CLEAR_BELOW = '\x1b[J';
 // swipes into exactly these; terminals without support ignore them harmlessly.
 const MOUSE_ON = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
 const MOUSE_OFF = '\x1b[?1006l\x1b[?1002l\x1b[?1000l';
+// OSC 2 window/pane title. Inside tmux this sets #{pane_title}, which is the
+// hook for the conditional prefix binding that makes Moshi's swipe work
+// without leaving tmux (see README → Moshi note):
+//   bind-key n if-shell -F '#{m:axfleet*,#{pane_title}}' 'send-keys n' 'next-window'
+const TITLE_SET = '\x1b]2;axfleet\x07';
+const TITLE_CLEAR = '\x1b]2;\x07';
 
 /** CSI final byte per ECMA-48: 0x40–0x7E terminates the sequence. */
 function isCsiFinal(code: number): boolean {
@@ -165,7 +171,7 @@ export class Term {
   enter(ev: TermEvents): void {
     if (this.entered) return;
     this.entered = true;
-    process.stdout.write(ENTER_ALT + HIDE_CURSOR + MOUSE_ON);
+    process.stdout.write(ENTER_ALT + HIDE_CURSOR + MOUSE_ON + TITLE_SET);
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.setEncoding('utf8');
@@ -210,7 +216,7 @@ export class Term {
     }
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     process.stdin.pause();
-    process.stdout.write(MOUSE_OFF + SHOW_CURSOR + LEAVE_ALT);
+    process.stdout.write(MOUSE_OFF + TITLE_CLEAR + SHOW_CURSOR + LEAVE_ALT);
   }
 
   /**

@@ -164,6 +164,12 @@ Design consequences:
   arbitrary keys.
 - Keep the drag-swipe recognizer anyway — it works in Moshi's Mouse Mode and
   on desktop terminals that forward drags.
+- **The tmux passthrough** (the primary recipe — verified end-to-end, and it
+  works inside the tmux session Moshi attaches by default): have the TUI set
+  an OSC 2 pane title (`\x1b]2;mytui\x07` on enter, cleared on exit), then
+  bind conditionally in tmux so the swipe chord forwards into the pane:
+  `bind-key n if-shell -F "#{m:mytui*,#{pane_title}}" "send-keys n" "next-window"`
+  (same for `p`). Stock window-switching is preserved for every other pane.
 - **The impersonation path** (verified against `moshi-hook context`): because
   detection is a bare env read, a TUI launched with
   `HERDR_ENV=1 HERDR_SESSION=<name>` reports `kind: "herdr"` and arms swipe,

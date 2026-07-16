@@ -47,19 +47,27 @@ scroll with the wheel or a drag, and a horizontally-locked drag-swipe switches
 tabs. The layout is responsive down to ~45-column widths (Moshi portrait):
 rows stack instead of truncating.
 
-**Moshi note** (protocol reverse-engineered + verified 2026-07): Moshi's
-plain horizontal swipe never reaches a TUI as mouse data. It is two-layer:
-an SSH preflight (`command -v tmux/zellij/herdr` + session listing) drives
-the picker, and live "in a multiplexer right now" detection — the thing that
-arms swipe — is the `moshi-hook` daemon doing a literal env read of
-`$TMUX_PANE` / `$ZELLIJ` / `$HERDR_ENV` (precedence in that order). On
-detection, swipe sends that multiplexer's prefix chord (`Ctrl-B n`/`p` for
-tmux/Herdr). So a TUI can opt in by impersonation: launch with
-`HERDR_ENV=1 HERDR_SESSION=<name>` in a **plain (non-tmux) session** with
-moshi-hook serving, and interpret `Ctrl-B n/p` — which this TUI does (the
-chord also just works as mux muscle memory anywhere). Zero-config
-alternatives: tap the tab labels, D-pad `←`/`→`, `n`/`p` keys, or Mouse Mode
-drag-swipe. Vertical swipes and taps work out of the box either way.
+**Moshi note** (protocol reverse-engineered + verified end-to-end 2026-07):
+Moshi's plain horizontal swipe never reaches a TUI as mouse data. Live
+detection = the `moshi-hook` daemon doing a literal env read of `$TMUX_PANE` /
+`$ZELLIJ` / `$HERDR_ENV` (precedence in that order); on detection, swipe sends
+that multiplexer's prefix chord (`Ctrl-B n`/`p`). Two working recipes:
+
+1. **Inside tmux** (Moshi's default attach) — install a conditional binding
+   so the chord forwards into an axfleet pane instead of switching windows
+   (the TUI advertises itself via an OSC 2 pane title):
+
+   ```tmux
+   bind-key n if-shell -F "#{m:axfleet*,#{pane_title}}" "send-keys n" "next-window"
+   bind-key p if-shell -F "#{m:axfleet*,#{pane_title}}" "send-keys p" "previous-window"
+   ```
+
+2. **Bare (non-tmux) session** — launch with `HERDR_ENV=1 HERDR_SESSION=<name>`
+   so detection reports `kind: herdr`; the TUI speaks the `Ctrl-B n/p` chord
+   directly.
+
+Zero-config alternatives: tap the tab labels, D-pad `←`/`→`, `n`/`p` keys, or
+Mouse Mode drag-swipe. Vertical swipes and taps work out of the box.
 
 ## The seven tabs
 
