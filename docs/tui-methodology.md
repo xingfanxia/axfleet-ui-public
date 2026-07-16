@@ -148,18 +148,21 @@ No retained widgets — hit-testing is two rules:
 |------------------|--------------------------------------------------------------|
 | tap              | SGR press + release at the cell                              |
 | vertical pan     | a burst of wheel-up/down events                              |
-| horizontal swipe | **nothing** — it's an app-level gesture that sends a configurable key sequence (aimed at tmux/Zellij/Herdr tab switching by default) |
+| horizontal swipe | **nothing** — it's hardwired to Moshi's multiplexer integration: live detection of tmux/Zellij/Herdr (remote CLI probes like `herdr session list --json`), then Moshi sends that multiplexer's tab-switch chord. In any other TUI it reports "no active window". It is NOT bindable to custom keys — only tap/long-press/D-pad slots accept the custom shortcut builder. |
 | Mouse-Mode drag  | press/drag/release forwarded to the TUI (gesture recognizer applies) |
 
 Design consequences:
 
 - **Never make swipe the only path to anything.** Tab labels are tappable and
-  `1-9` direct-select always works.
-- **Expose single-key aliases for next/prev** (`n`/`p` here) so users can bind
-  the terminal app's swipe gesture to your TUI in one setting. A prefix chord
-  can't be a swipe binding; a single letter can.
-- Keep the drag-swipe recognizer anyway — it works in Mouse Mode and on
-  desktop terminals that forward drags.
+  `1-9` direct-select always works — on phones, tap-the-label is the primary
+  navigation, not a fallback.
+- **Map arrow keys to next/prev** — phone terminals ship a D-pad, so `←`/`→`
+  works with zero configuration — and expose single-key aliases too (`n`/`p`
+  here) for custom D-pad/tap slots and for terminals whose gestures CAN send
+  arbitrary keys.
+- Keep the drag-swipe recognizer anyway — it works in Moshi's Mouse Mode and
+  on desktop terminals that forward drags. But don't count on plain swipe
+  ever reaching a non-multiplexer TUI in Moshi.
 
 ## 7. Responsive narrow mode (phone floor ≈ 45 cols)
 

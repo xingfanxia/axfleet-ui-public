@@ -47,12 +47,14 @@ scroll with the wheel or a drag, and a horizontally-locked drag-swipe switches
 tabs. The layout is responsive down to ~45-column widths (Moshi portrait):
 rows stack instead of truncating.
 
-**Moshi note**: Moshi's plain horizontal swipe is an app-level gesture (it
-sends a configurable key sequence — by default aimed at tmux/Zellij/Herdr
-tabs), so it never reaches a TUI as mouse data. Two ways to swipe-switch tabs
-here: bind Moshi's swipe gestures to the single keys `n` (next) and `p`
-(prev) under Settings → Gestures, or use Moshi's Mouse Mode, where press-drag
-is forwarded to the TUI and the built-in drag-swipe recognizer takes over.
+**Moshi note**: Moshi's plain horizontal swipe never reaches a TUI as mouse
+data — it's hardwired to Moshi's multiplexer integration (live detection of
+tmux/Zellij/Herdr via remote CLI probes, then it sends that multiplexer's
+tab-switch chord; in any other program it reports "no active window", and it
+cannot be bound to custom keys). To switch tabs here from a phone: tap the
+tab labels (zero config), use the D-pad `←`/`→` (already mapped) or put
+`n`/`p` on custom D-pad slots, or enable Mouse Mode — press-drag is then
+forwarded to the TUI and the built-in drag-swipe recognizer takes over.
 Vertical swipes and taps work out of the box either way.
 
 ## The seven tabs
