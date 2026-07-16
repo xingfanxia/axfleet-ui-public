@@ -1,0 +1,17 @@
+{
+  "name": "axfleet-ui-public",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "axfleet — a fleet-monitoring TUI (public UI demo driven entirely by fixture data)",
+  "scripts": {
+    "tui": "bun run tui/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "verify": "bun run typecheck && bun test"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.14",
+    "typescript": "^5.9.0"
+  }
+}
