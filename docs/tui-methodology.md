@@ -150,7 +150,7 @@ No retained widgets — hit-testing is two rules:
 |------------------|--------------------------------------------------------------|
 | tap              | SGR press + release at the cell                              |
 | vertical pan     | a burst of wheel-up/down events                              |
-| horizontal swipe | **nothing** — it's hardwired to Moshi's multiplexer integration: live detection of tmux/Zellij/Herdr (remote CLI probes like `herdr session list --json`), then Moshi sends that multiplexer's tab-switch chord. In any other TUI it reports "no active window". It is NOT bindable to custom keys — only tap/long-press/D-pad slots accept the custom shortcut builder. |
+| horizontal swipe | **nothing by default** — swipe is armed only when Moshi's live multiplexer detection fires. That detection (verified empirically) is the closed-source `moshi-hook` daemon doing a literal env read of `$TMUX_PANE` / `$ZELLIJ` / `$HERDR_ENV` — precedence in that order — and on detection swipe sends that multiplexer's prefix chord (`Ctrl-B n`/`p` for tmux/Herdr). The SSH preflight (`command -v tmux/zellij/herdr` + `herdr session list --json`) only drives the session picker. No plugin API; other TUIs report "no active window"; swipe is NOT bindable to custom keys — only tap/long-press/D-pad slots accept the custom shortcut builder. |
 | Mouse-Mode drag  | press/drag/release forwarded to the TUI (gesture recognizer applies) |
 
 Design consequences:
@@ -163,8 +163,17 @@ Design consequences:
   here) for custom D-pad/tap slots and for terminals whose gestures CAN send
   arbitrary keys.
 - Keep the drag-swipe recognizer anyway — it works in Moshi's Mouse Mode and
-  on desktop terminals that forward drags. But don't count on plain swipe
-  ever reaching a non-multiplexer TUI in Moshi.
+  on desktop terminals that forward drags.
+- **The impersonation path** (verified against `moshi-hook context`): because
+  detection is a bare env read, a TUI launched with
+  `HERDR_ENV=1 HERDR_SESSION=<name>` reports `kind: "herdr"` and arms swipe,
+  which then delivers `Ctrl-B n`/`Ctrl-B p` as ordinary key input. Support
+  the prefix chord (Ctrl-B, then n/p/digit, ~2s window, tmux-style swallow of
+  unknown keys) and swipe becomes native. Preconditions: the moshi-hook
+  daemon must be serving on the host, and the session must be a plain shell —
+  `$TMUX_PANE` wins precedence, so inside a tmux-attached session the chord
+  goes to tmux instead. The chord support is worth shipping regardless: it
+  matches tmux/herdr muscle memory and is inert otherwise.
 
 ## 7. Responsive narrow mode (phone floor ≈ 45 cols)
 
