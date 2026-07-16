@@ -1,7 +1,9 @@
 # Building a phone-friendly monitoring TUI — methodology
 
 This document distills how the axfleet TUI is built so the same approach can
-be reused for a different TUI. It is written for an implementing agent: every
+be reused for a different TUI. (Also packaged as the agent skill
+[`tui-engineering`](https://github.com/xingfanxia/AX-skills/tree/main/tui-engineering)
+— same content organized as SKILL.md + references with copy-ready code.) It is written for an implementing agent: every
 rule states the failure it prevents, and every mechanism has a reference
 implementation in this repo. The stack here is Bun + TypeScript with zero
 terminal libraries — the whole terminal layer is ~500 lines you own — but the
