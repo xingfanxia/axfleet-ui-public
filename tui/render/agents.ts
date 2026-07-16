@@ -5,7 +5,7 @@
 import { UNANSWERED_STUCK_MIN } from '../../contracts/types';
 import { buildAgentsView } from '../../lib/views';
 import { ago, compactTokens, usd } from '../../lib/format';
-import { padEnd, truncate } from '../ansi';
+import { padEnd, truncate, visibleWidth } from '../ansi';
 import { paint } from '../theme';
 import type { AppState } from '../state';
 import { badge } from './widgets';
@@ -13,6 +13,9 @@ import { badge } from './widgets';
 export function renderAgents(s: AppState, width: number): string[] {
   if (!s.fleet) return [paint(' loading…', { fg: 'faint' })];
   const view = buildAgentsView(s.fleet.hosts, s.fleet.tokens);
+  // Narrow (phone) mode: activity metadata moves to a wrapped second line per
+  // agent instead of truncating off the right edge.
+  const narrow = width < 60;
   const lines: string[] = [];
   const section = (t: string) => {
     if (lines.length > 0) lines.push('');
@@ -52,8 +55,13 @@ export function renderAgents(s: AppState, width: number): string[] {
     const stuck = (p.unanswered ?? 0) > 0
       ? badge(` ${p.unanswered} unanswered${(p.oldest_unanswered_min ?? 0) >= UNANSWERED_STUCK_MIN ? ` ${p.oldest_unanswered_min}m!` : ''}`, (p.oldest_unanswered_min ?? 0) >= UNANSWERED_STUCK_MIN ? 'crit' : 'warn')
       : '';
-    const meta = paint([idle, ctx, lin, lout, today].filter(Boolean).join(' · '), { fg: 'dim' });
-    lines.push(`  ${dot} ${name} ${rt} ${meta}${stuck}`.trimEnd());
+    const metaParts = [idle, ctx, lin, lout, today].filter(Boolean);
+    if (narrow) {
+      lines.push(`  ${dot} ${name} ${paint(runtime, { fg: 'faint' })}${stuck}`.trimEnd());
+      for (const w of packParts(metaParts, width - 6)) lines.push(paint(`     ${w}`, { fg: 'dim' }));
+    } else {
+      lines.push(`  ${dot} ${name} ${rt} ${paint(metaParts.join(' · '), { fg: 'dim' })}${stuck}`.trimEnd());
+    }
   }
 
   if (view.herdr.length > 0) {
@@ -78,12 +86,18 @@ export function renderAgents(s: AppState, width: number): string[] {
         l.week_tokens != null ? compactTokens(l.week_tokens) : '',
         l.week_cost_usd != null && l.week_cost_usd > 0 ? usd(l.week_cost_usd) : '',
       ].filter(Boolean).join(' ');
-      const meta = [
+      const metaParts = [
         today ? `today ${today}` : '',
         week ? `7d ${week}` : '',
         l.since ? `since ${l.since.slice(0, 16)}` : '',
-      ].filter(Boolean).join(' · ');
-      lines.push(`  ${l.alive ? paint('●', { fg: 'success' }) : paint('✖', { fg: 'danger' })} ${padEnd(truncate(label, 24), 24)} ${paint(meta, { fg: 'faint' })}`.trimEnd());
+      ].filter(Boolean);
+      const dot = l.alive ? paint('●', { fg: 'success' }) : paint('✖', { fg: 'danger' });
+      if (narrow) {
+        lines.push(`  ${dot} ${truncate(label, width - 4)}`);
+        for (const w of packParts(metaParts, width - 6)) lines.push(paint(`     ${w}`, { fg: 'faint' }));
+      } else {
+        lines.push(`  ${dot} ${padEnd(truncate(label, 24), 24)} ${paint(metaParts.join(' · '), { fg: 'faint' })}`.trimEnd());
+      }
     }
   }
 
@@ -97,7 +111,13 @@ export function renderAgents(s: AppState, width: number): string[] {
       const cron = g.cron_total > 0 ? paint(` · cron ${g.cron_enabled}/${g.cron_total}`, { fg: 'faint' }) : '';
       const el = g.event_loop_degraded ? badge(' event loop!', 'warn') : '';
       const plugs = g.plugin_errors.length > 0 ? badge(` plugins: ${g.plugin_errors[0]}`, 'warn') : '';
-      lines.push(`  ${gw} ${paint(`${g.host_id}${g.version ? ` v${g.version}` : ''}`, { fg: 'faint' })}${rss}${cron}${el}${plugs}`);
+      const host = paint(`${g.host_id}${g.version ? ` v${g.version}` : ''}`, { fg: 'faint' });
+      if (narrow) {
+        lines.push(`  ${gw} ${host}`);
+        lines.push(`    ${`${rss}${cron}${el}${plugs}`.trimStart()}`.trimEnd());
+      } else {
+        lines.push(`  ${gw} ${host}${rss}${cron}${el}${plugs}`);
+      }
     }
     for (const a of view.openclaw_agents) {
       const bot = a.bot;
@@ -124,7 +144,12 @@ export function renderAgents(s: AppState, width: number): string[] {
                 ? badge(`token ${bot.token_status}`, 'warn')
                 : paint('connected', { fg: 'dim' });
       const retries = bot && bot.reconnect_attempts > 0 ? paint(` (${bot.reconnect_attempts} retries)`, { fg: 'warning' }) : '';
-      lines.push(`  ${dot} ${name} ${paint(padEnd(truncate(key, 11), 11), { fg: 'faint' })} ${state}${retries}`.trimEnd());
+      if (narrow) {
+        lines.push(`  ${dot} ${name} ${paint(truncate(key, 11), { fg: 'faint' })}`.trimEnd());
+        lines.push(`     ${state}${retries}`.trimEnd());
+      } else {
+        lines.push(`  ${dot} ${name} ${paint(padEnd(truncate(key, 11), 11), { fg: 'faint' })} ${state}${retries}`.trimEnd());
+      }
     }
   } else if (view.openclaw.length > 0) {
     // pre-upgrade collector: fall back to the service-state rows
@@ -146,4 +171,25 @@ export function renderAgents(s: AppState, width: number): string[] {
   lines.push('');
   lines.push(paint(` ${totals.cl} claude · ${totals.cx} codex processes fleet-wide`, { fg: 'faint' }));
   return lines.map((l) => truncate(l, width));
+}
+
+/**
+ * Greedy-pack ` · `-separated parts into lines of ≤ `width` cells — the narrow
+ * meta wrapper. Breaking BETWEEN parts (never inside one) keeps units like
+ * "today 3.2M $1.80" whole and avoids dangling `·` at line ends.
+ */
+function packParts(parts: string[], width: number): string[] {
+  const out: string[] = [];
+  let cur = '';
+  for (const part of parts) {
+    const cand = cur ? `${cur} · ${part}` : part;
+    if (cur && visibleWidth(cand) > width) {
+      out.push(cur);
+      cur = part;
+    } else {
+      cur = cand;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
 }

@@ -85,6 +85,50 @@ function matchAnsiAt(s: string, i: number): string | null {
   return m && m.index === i ? m[0] : null;
 }
 
+/**
+ * Word-wrap PLAIN text (no ANSI) to `width` cells — the narrow-layout tool for
+ * stacking a message under its row instead of truncating it away. Over-long
+ * words (URLs) hard-break at the cell boundary.
+ */
+export function wrapPlain(text: string, width: number): string[] {
+  if (width <= 0) return [text];
+  const out: string[] = [];
+  let cur = '';
+  let curW = 0;
+  const flush = (): void => {
+    if (cur) out.push(cur);
+    cur = '';
+    curW = 0;
+  };
+  for (let word of text.split(/\s+/).filter(Boolean)) {
+    let w = visibleWidth(word);
+    if (curW > 0 && curW + 1 + w > width) flush();
+    while (w > width) {
+      // hard-break: take exactly `width` cells off the front
+      flush();
+      let take = '';
+      let tw = 0;
+      let i = 0;
+      while (i < word.length) {
+        const cp = word.codePointAt(i)!;
+        const cw = charWidth(cp);
+        if (tw + cw > width) break;
+        take += String.fromCodePoint(cp);
+        tw += cw;
+        i += String.fromCodePoint(cp).length;
+      }
+      out.push(take);
+      word = word.slice(take.length);
+      w = visibleWidth(word);
+    }
+    if (!word) continue;
+    cur = cur ? `${cur} ${word}` : word;
+    curW = curW === 0 ? w : curW + 1 + w;
+  }
+  flush();
+  return out.length > 0 ? out : [''];
+}
+
 /** Pad with trailing spaces to exactly `width` cells (truncates when over). */
 export function padEnd(s: string, width: number): string {
   const w = visibleWidth(s);

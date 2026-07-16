@@ -5,7 +5,7 @@
  */
 import { ago } from '../../lib/format';
 import { truncate, visibleWidth } from '../ansi';
-import { paint } from '../theme';
+import { CARET, paint } from '../theme';
 import { TABS, type AppState, type Tab } from '../state';
 import { renderAgents } from './agents';
 import { renderAlerts } from './alerts';
@@ -25,10 +25,23 @@ const TAB_LABELS: Record<Tab, string> = {
   alerts: 'Alerts',
 };
 
+/** Clickable extent of one tab label on the tab-bar row (0-based cols, end exclusive). */
+export interface TabRange {
+  tab: Tab;
+  start: number;
+  end: number;
+}
+
+/** Fixed rows of the frame chrome — the click mapping in index.ts relies on these. */
+export const TAB_BAR_ROW = 1;
+export const BODY_TOP_ROW = 3;
+
 export interface Frame {
   lines: string[];
   /** total body-pane lines before clipping — index.ts uses it to clamp scroll */
   bodyTotal: number;
+  /** tab-label extents on TAB_BAR_ROW, for tap-to-switch */
+  tabRanges: TabRange[];
 }
 
 export function renderFrame(s: AppState, cols: number, rows: number): Frame {
@@ -36,8 +49,14 @@ export function renderFrame(s: AppState, cols: number, rows: number): Frame {
   const pane = renderPane(s, cols, bodyH);
   const body = pane.slice(s.scroll, s.scroll + bodyH);
   while (body.length < bodyH) body.push('');
-  const lines = [header(s, cols), tabBar(s, cols), paint('─'.repeat(cols), { fg: 'line' }), ...body, footer(s, cols)];
-  return { lines: lines.map((l) => truncate(l, cols)), bodyTotal: pane.length };
+  const tabs = tabBar(s, cols);
+  const lines = [header(s, cols), tabs.line, paint('─'.repeat(cols), { fg: 'line' }), ...body, footer(s, cols)];
+  return { lines: lines.map((l) => truncate(l, cols)), bodyTotal: pane.length, tabRanges: tabs.ranges };
+}
+
+/** The tab whose label covers column `x` on the tab-bar row, if any. */
+export function hitTab(ranges: TabRange[], x: number): Tab | null {
+  return ranges.find((r) => x >= r.start && x < r.end)?.tab ?? null;
 }
 
 function renderPane(s: AppState, cols: number, bodyH: number): string[] {
@@ -91,22 +110,44 @@ function connStatus(s: AppState): string {
   }
 }
 
-function tabBar(s: AppState, cols: number): string {
-  const narrow = cols < 76;
-  const parts = TABS.map((t, i) => {
+function tabBar(s: AppState, cols: number): { line: string; ranges: TabRange[] } {
+  // Try full labels first; degrade to 3-letter labels the moment they don't
+  // fit (full labels need ~79 cols — at 76–79 the last tab used to truncate).
+  const wide = buildTabBar(s, false);
+  const bar = visibleWidth(wide.line) <= cols ? wide : buildTabBar(s, true);
+  return {
+    line: bar.line,
+    ranges: bar.ranges.filter((r) => r.start < cols).map((r) => ({ ...r, end: Math.min(r.end, cols) })),
+  };
+}
+
+function buildTabBar(s: AppState, narrow: boolean): { line: string; ranges: TabRange[] } {
+  const sep = narrow ? ' ' : '  ';
+  const ranges: TabRange[] = [];
+  let line = ' ';
+  let x = 1;
+  TABS.forEach((t, i) => {
+    if (i > 0) {
+      line += sep;
+      x += sep.length;
+    }
     const label = narrow ? TAB_LABELS[t].slice(0, 3) : TAB_LABELS[t];
     const probs = t === 'alerts' && s.fleet && s.fleet.problems.length > 0 ? paint(`(${s.fleet.problems.length})`, { fg: 'danger' }) : '';
     // narrow drops the number-label space too: 7 tabs must fit 45 cols
     const text = narrow ? `${i + 1}${label}${probs}` : `${i + 1} ${label}${probs}`;
-    return t === s.tab ? paint('❯', { fg: 'accent', bold: true }) + paint(text, { fg: 'text', bold: true }) : ' ' + paint(text, { fg: 'faint' });
+    const cell = t === s.tab ? paint(CARET, { fg: 'accent', bold: true }) + paint(text, { fg: 'text', bold: true }) : ' ' + paint(text, { fg: 'faint' });
+    const w = visibleWidth(cell);
+    ranges.push({ tab: t, start: x, end: x + w });
+    line += cell;
+    x += w;
   });
-  return ' ' + parts.join(narrow ? ' ' : '  ');
+  return { line, ranges };
 }
 
 function footer(s: AppState, cols: number): string {
   const err = s.fleetError && s.conn === 'lost' ? paint(` hub unreachable: ${s.fleetError} · retrying `, { fg: 'danger' }) : null;
   if (err) return truncate(err, cols);
-  const keys = cols < 76 ? ' 1-7 tabs · jk move · r refresh · q quit' : ' 1-7/←→ tabs · j/k move · t range · r refresh · q quit';
+  const keys = cols < 76 ? ' swipe/1-7 tabs · tap/jk · r · q quit' : ' 1-7/←→/swipe tabs · j/k move · t range · r refresh · q/esc quit';
   const hub = s.hubUrl.replace(/^https?:\/\//, '');
   const gap = cols - visibleWidth(keys) - visibleWidth(hub) - 1;
   const right = gap >= 1 ? ' '.repeat(gap) + hub : '';

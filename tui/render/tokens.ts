@@ -10,6 +10,7 @@ import type { AppState } from '../state';
 import { sparkline } from './widgets';
 
 export function renderTokens(s: AppState, width: number): string[] {
+  const narrow = width < 60;
   const lines: string[] = [];
   const rangeLabel = s.tokensRange === 'today' ? 'today (UTC)' : s.tokensRange;
   const head = ` range ${paint(rangeLabel, { fg: 'accent', bold: true })} ${paint('(t to cycle)', { fg: 'faint' })}`;
@@ -19,7 +20,13 @@ export function renderTokens(s: AppState, width: number): string[] {
     return lines;
   }
   const d = s.tokens;
-  lines.push(head + paint(`   as of ${d.as_of ? `${ago(d.as_of)} ago` : '—'}`, { fg: 'faint' }));
+  const asOf = paint(`as of ${d.as_of ? `${ago(d.as_of)} ago` : '—'}`, { fg: 'faint' });
+  if (narrow) {
+    lines.push(head);
+    lines.push(' ' + asOf);
+  } else {
+    lines.push(head + '   ' + asOf);
+  }
   lines.push('');
   lines.push(
     ` ${paint(usd(d.totals.cost_usd), { fg: 'text', bold: true })} ${paint(`· ${compactTokens(d.totals.total_tokens)} tokens · ${d.totals.messages} messages`, { fg: 'dim' })}`,
@@ -47,7 +54,9 @@ export function renderTokens(s: AppState, width: number): string[] {
   lines.push('');
   lines.push(paint(' by model', { fg: 'dim', bold: true }));
   const models = [...d.by_model].sort((a, b) => b.cost_usd - a.cost_usd).slice(0, 6);
-  lines.push(...barTable(models.map((r) => ({ label: `${r.model} ${paint(`(${r.client})`, { fg: 'faint' })}`, cost: r.cost_usd, tokens: r.total_tokens })), width));
+  // narrow drops the (client) suffix — the model name is the signal and the
+  // suffix is what used to push it off the edge
+  lines.push(...barTable(models.map((r) => ({ label: narrow ? r.model : `${r.model} ${paint(`(${r.client})`, { fg: 'faint' })}`, cost: r.cost_usd, tokens: r.total_tokens })), width));
 
   if (s.fleet?.tokens.stale_instances.length) {
     lines.push('');
@@ -59,8 +68,11 @@ export function renderTokens(s: AppState, width: number): string[] {
 function barTable(rows: Array<{ label: string; cost: number; tokens: number }>, width: number): string[] {
   if (rows.length === 0) return [paint('   none', { fg: 'faint' })];
   const max = Math.max(1e-9, ...rows.map((r) => r.cost));
-  const labelW = 16;
-  const barW = Math.max(6, Math.min(24, width - labelW - 22));
+  // Narrow: the bar shrinks before the label does — a readable name beats
+  // two extra bar cells on a phone.
+  const narrow = width < 60;
+  const barW = narrow ? 5 : Math.max(6, Math.min(24, width - 16 - 22));
+  const labelW = narrow ? Math.max(12, width - barW - 22) : 16;
   return rows.map((r) => {
     const fill = Math.max(r.cost > 0 ? 1 : 0, Math.round((r.cost / max) * barW));
     const bar = paint('▮'.repeat(fill), { fg: 'accent' }) + paint('▯'.repeat(barW - fill), { fg: 'lineStrong' });

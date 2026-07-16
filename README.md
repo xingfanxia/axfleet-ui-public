@@ -26,7 +26,7 @@ so gauges drift and `ago` ages tick exactly like the real thing.
 │ net ts 100.64.0.11 · agents 1cl/0cx · mosh 1                                                     │
 │ svc 15/15 running                                                                                │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
- 1-7/←→ tabs · j/k move · t range · r refresh · q quit                          demo · fixture data
+ 1-7/←→/swipe tabs · j/k move · t range · r refresh · q/esc quit                demo · fixture data
 ```
 
 ## Run it
@@ -41,8 +41,11 @@ bun run verify           # typecheck + 129 tests
 ```
 
 Keys: `1-7` / `←→` / `tab` switch tabs · `j/k` move or scroll · `t` cycles the
-token range · `r` refreshes · `q` quits. The layout is responsive down to
-~45-column phone terminals (Moshi portrait).
+token range · `r` refreshes · `q`/`esc` quits. Mouse and touch work too (SGR
+mouse reporting): tap a tab label or a fleet/VPN row to select it, scroll with
+the wheel or a drag, and swipe horizontally to switch tabs — which is how it's
+driven from phone terminals like Moshi. The layout is responsive down to
+~45-column widths (Moshi portrait): rows stack instead of truncating.
 
 ## The seven tabs
 

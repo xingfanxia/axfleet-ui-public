@@ -10,7 +10,7 @@ import { factorioView } from '../../contracts/factorio';
 import { NEWAPI_CHANNEL_STATUS, OMNI_SYNC_STALE, omniSourceHealth } from '../../contracts/types';
 import type { BlogNewsletter, FactorioInfo, FleetHost, HostSnapshot, NewApiInfo, OmniInfo, Probe, RadarNewsletter } from '../../contracts/types';
 import { ago, estimatedCount, lowerBoundCount } from '../../lib/format';
-import { padEnd, padStart, truncate } from '../ansi';
+import { padEnd, padStart, truncate, wrapPlain } from '../ansi';
 import { paint, type ColorName } from '../theme';
 import type { AppState } from '../state';
 
@@ -69,7 +69,7 @@ export function renderGateways(s: AppState, width: number): string[] {
     if (bnl) lines.push(...blogNewsletterBlock(bnl));
     if (nl) {
       if (lines.length > 0) lines.push('');
-      lines.push(...radarNewsletterBlock(nl));
+      lines.push(...radarNewsletterBlock(nl, width));
     }
     if (lines.length > 0) lines.push('');
     lines.push(paint(' no Factorio, Omni, or New API hosts reporting', { fg: 'faint' }));
@@ -81,11 +81,11 @@ export function renderGateways(s: AppState, width: number): string[] {
   if (bnl) lines.push(...blogNewsletterBlock(bnl));
   if (nl) {
     if (lines.length > 0) lines.push('');
-    lines.push(...radarNewsletterBlock(nl));
+    lines.push(...radarNewsletterBlock(nl, width));
   }
   for (const r of factorioRows) {
     if (lines.length > 0) lines.push('');
-    lines.push(...factorioHost(r.host, r.probe));
+    lines.push(...factorioHost(r.host, r.probe, width));
   }
   for (const r of rows) {
     if (lines.length > 0) lines.push('');
@@ -136,7 +136,7 @@ function blogNewsletterBlock(nl: BlogNewsletter): string[] {
 /** News newsletter rollup — a compact block that fits the 45-col phone floor
  *  (subscribers and delivery on their own lines). Null fields
  *  (creds unset / query failed) render '—'; failed sends flag warning. */
-function radarNewsletterBlock(nl: RadarNewsletter): string[] {
+function radarNewsletterBlock(nl: RadarNewsletter, width: number): string[] {
   const failed = nl.failed_total ?? 0;
   const active = nl.active ?? '—';
   const pending = nl.pending ?? '—';
@@ -144,21 +144,22 @@ function radarNewsletterBlock(nl: RadarNewsletter): string[] {
   const last = nl.last_send_at ? `${ago(nl.last_send_at)} ago` : '—';
   const sep = paint(' · ', { fg: 'faint' });
   const failTxt = failed > 0 ? sep + paint(`${failed} failed`, { fg: 'warning', bold: true }) : '';
-  return [
+  const deliveredLine = ' ' + paint(`${delivered} delivered`, { fg: 'dim' }) + failTxt;
+  const lastSend = paint(`last send ${last}`, { fg: 'faint' });
+  const out = [
     ` ${paint('radar · newsletter', { fg: 'dim', bold: true })}`,
     ' ' +
       paint(`${active} active`, { fg: 'success', bold: true }) +
       sep +
       paint(`${pending} pending`, { fg: 'dim' }),
-    ' ' +
-      paint(`${delivered} delivered`, { fg: 'dim' }) +
-      failTxt +
-      sep +
-      paint(`last send ${last}`, { fg: 'faint' }),
   ];
+  // last-send drops to its own line when it would truncate (45-col floor)
+  if (width < 60) out.push(deliveredLine, ' ' + lastSend);
+  else out.push(deliveredLine + sep + lastSend);
+  return out;
 }
 
-function factorioHost(host: FleetHost, probe: Probe<FactorioInfo>): string[] {
+function factorioHost(host: FleetHost, probe: Probe<FactorioInfo>, width: number): string[] {
   const view = factorioView(probe, host.reachable);
   if (!view.data) return [
     paint(` Factorio · ${host.display_name}`, { fg: 'dim', bold: true }),
@@ -168,11 +169,17 @@ function factorioHost(host: FleetHost, probe: Probe<FactorioInfo>): string[] {
   const state = view.state === 'current'
     ? paint('● current', { fg: 'success' })
     : paint(`▲ ${view.state}`, { fg: 'warning' });
-  return [
+  const lines = [
     ` ${paint(`Factorio · ${host.display_name}`, { fg: 'dim', bold: true })}  ${state}`,
     `  players ${view.players_label} · game ${data.game_version} · map ${data.save.map_version ?? 'unknown'}`,
-    `  save ${data.save.loaded_file} · mods ${data.mods.length} · started ${ago(data.started_at)} ago`,
   ];
+  if (width < 60) {
+    lines.push(`  save ${data.save.loaded_file}`);
+    lines.push(`  mods ${data.mods.length} · started ${ago(data.started_at)} ago`);
+  } else {
+    lines.push(`  save ${data.save.loaded_file} · mods ${data.mods.length} · started ${ago(data.started_at)} ago`);
+  }
+  return lines;
 }
 
 /** New API gateway health on the gateways tab (same docker-stack theme):
@@ -196,9 +203,12 @@ function newapiHost(host: FleetHost, probe: Probe<NewApiInfo>, width: number): s
     const label = NEWAPI_CHANNEL_STATUS[c.status] ?? String(c.status);
     const color: Parameters<typeof paint>[1]['fg'] = c.status === 2 ? 'danger' : c.status === 3 ? 'faint' : 'success';
     const lat = c.response_time_ms ? `${c.response_time_ms}ms` : '—';
+    // The status column is the point of this pane — on narrow widths the NAME
+    // shrinks so the status ("auto-disabled") always survives.
+    const nameW = Math.max(10, Math.min(34, width - 3 - 14 - 8 - 1));
     out.push(
       '   ' +
-        padEnd(truncate(c.name, 34), 34) +
+        padEnd(truncate(c.name, nameW), nameW) +
         paint(padEnd(label, 14), { fg: color }) +
         paint(padStart(lat, 8), { fg: 'faint' }),
     );
@@ -223,16 +233,17 @@ function omniHost(host: FleetHost, o: OmniInfo, checkedAt: string, width: number
   const failRecent = lowerBoundCount(q.failed_recent, qCapped?.failed_recent);
   const failTxt = q.failed_recent > 0 ? paint(`${failRecent} fails/1h`, { fg: 'warning', bold: true }) : paint('0 fails/1h', { fg: 'dim' });
   const stuckTxt = o.stuck_runs > 0 ? paint(`${o.stuck_runs} stuck`, { fg: 'warning', bold: true }) : paint('0 stuck', { fg: 'dim' });
-  lines.push(
-    ' ' +
-      paint(`${estimatedCount(o.docs_total, o.docs_total_estimated, true)} docs`, { fg: 'dim' }) +
-      paint(' · ', { fg: 'faint' }) +
-      paint(`queue ${lowerBoundCount(q.pending, qCapped?.pending)}p/${lowerBoundCount(q.processing, qCapped?.processing)}a`, { fg: 'dim' }) +
-      paint(' · ', { fg: 'faint' }) +
-      failTxt +
-      paint(' · ', { fg: 'faint' }) +
-      stuckTxt,
-  );
+  const docsPart =
+    paint(`${estimatedCount(o.docs_total, o.docs_total_estimated, true)} docs`, { fg: 'dim' }) +
+    paint(' · ', { fg: 'faint' }) +
+    paint(`queue ${lowerBoundCount(q.pending, qCapped?.pending)}p/${lowerBoundCount(q.processing, qCapped?.processing)}a`, { fg: 'dim' });
+  const healthPart = failTxt + paint(' · ', { fg: 'faint' }) + stuckTxt;
+  if (width < 60) {
+    lines.push(' ' + docsPart);
+    lines.push(' ' + healthPart);
+  } else {
+    lines.push(' ' + docsPart + paint(' · ', { fg: 'faint' }) + healthPart);
+  }
   lines.push('');
 
   const wide = width >= 76;
@@ -259,7 +270,7 @@ function omniHost(host: FleetHost, o: OmniInfo, checkedAt: string, width: number
     // Not on `syncing` — a resolved-and-recrawling source must not show the stale
     // pre-recovery error next to a healthy badge (the signal that confused this in the first place).
     if (src.last_error && st.label !== 'ok' && st.label !== 'off' && st.label !== 'syncing') {
-      lines.push(paint(`     ${truncate(src.last_error, width - 6)}`, { fg: 'faint' }));
+      for (const w of wrapPlain(src.last_error, width - 6)) lines.push(paint(`     ${w}`, { fg: 'faint' }));
     }
   }
   return lines;

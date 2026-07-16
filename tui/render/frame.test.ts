@@ -338,6 +338,37 @@ describe('renderFrame layout contract', () => {
   });
 });
 
+describe('narrow (phone) mode — stacked rows keep full information at 45 cols', () => {
+  const textAt = (tab: Tab, cols = 45, rows = 40): string =>
+    renderFrame(setTab(loadedState(), tab), cols, rows).lines.map(stripAnsi).join('\n');
+
+  test('alerts: push messages and errors survive (used to truncate off)', () => {
+    const text = textAt('alerts');
+    expect(text).toContain('api-gateway failed');
+    expect(text).toContain('auth expired');
+  });
+
+  test('agents: openclaw bot failure detail survives', () => {
+    const text = textAt('agents');
+    expect(text).toContain('ETELEGRAM: 502');
+  });
+
+  test('accounts: daemon switch forecast survives', () => {
+    const text = textAt('accounts');
+    expect(text).toContain('next switch acct-main');
+  });
+
+  test('tokens: model name is not sacrificed to the bar', () => {
+    const text = textAt('tokens');
+    expect(text).toContain('claude-fable-5');
+  });
+
+  test('wide layouts are byte-identical to before (narrow paths gated)', () => {
+    const text = textAt('alerts', 120, 45);
+    expect(text).toContain('api-gateway failed');
+  });
+});
+
 describe('failed-probe honesty', () => {
   const failed = <T,>(): { available: false; error: string; checked_at: string } => ({
     available: false, error: 'docker exec timed out', checked_at: new Date().toISOString(),

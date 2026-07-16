@@ -50,20 +50,43 @@ function certDays(v: Row): number | null {
 
 function vpnRow(v: Row, selected: boolean, width: number): string {
   const caret = selected ? paint(CARET, { fg: 'accent', bold: true }) : ' ';
+  const days = certDays(v);
+  const upd = v.update_available ? badge(`→${v.latest_version ?? 'new'}`, 'warn') : '';
+  if (width < 60) {
+    // Phone floor: rows MUST stay one line each (selection index == pane line).
+    // State compresses to a glyph and units to "3.9M" so the cert/update
+    // badges — the actionable bits — always fit; the healthy cert countdown
+    // lives in the detail box.
+    const glyph = !v.reachable
+      ? paint('✖', { fg: 'danger', bold: true })
+      : v.service_state === 'running'
+        ? paint('●', { fg: 'success' })
+        : v.service_state === 'failed' || v.service_state === 'stopped'
+          ? paint('✖', { fg: 'danger', bold: true })
+          : paint('▲', { fg: 'warning' });
+    const name = paint(padEnd(truncate(v.display_name, 10), 10), selected ? { fg: 'text', bold: true } : { fg: 'text' });
+    const thr = paint(`↑${bpsCompact(v.throughput.up_bps)} ↓${bpsCompact(v.throughput.down_bps)}`, { fg: 'dim' });
+    const certWarn = days != null && days < 14 ? badge(`cert ${days}d!`, days < 7 ? 'crit' : 'warn') : '';
+    const updNarrow = v.update_available ? badge('→new', 'warn') : ''; // target version is in the detail box
+    return `${caret} ${glyph} ${name} ${thr} ${certWarn} ${updNarrow}`.trimEnd();
+  }
   const name = paint(padEnd(truncate(v.display_name, 14), 14), selected ? { fg: 'text', bold: true } : { fg: 'text' });
   const thr = paint(`↑${bpsHuman(v.throughput.up_bps)} ↓${bpsHuman(v.throughput.down_bps)}`, { fg: 'dim' });
   const conns =
     v.clients_active != null
       ? paint(`${v.clients_active} clients`, { fg: 'warning' })
       : paint(`${v.connections.active} conn`, { fg: 'dim' });
-  const days = certDays(v);
   const cert = days == null ? '' : days < 14 ? badge(`cert ${days}d!`, days < 7 ? 'crit' : 'warn') : paint(`cert ${days}d`, { fg: 'faint' });
-  const upd = v.update_available ? badge(`→${v.latest_version ?? 'new'}`, 'warn') : '';
   if (width >= 90) {
     const ver = paint(padEnd(`v${v.version ?? '?'}`, 9), { fg: 'faint' });
     return `${caret} ${stateBadge(v)} ${name} ${ver} ${padEnd(thr, 24)} ${padEnd(conns, 11)} ${cert} ${upd}`.trimEnd();
   }
   return `${caret} ${stateBadge(v)} ${name} ${thr} ${cert} ${upd}`.trimEnd();
+}
+
+/** "3.94 Mbps" → "3.94M" — row-cell units for the 45-col floor. */
+function bpsCompact(bps: number | null | undefined): string {
+  return bpsHuman(bps).replace(/\s?([KMGT])bps$/, '$1').replace(/\s?bps$/, 'b');
 }
 
 function vpnDetail(s: AppState, v: Row, width: number, maxLines: number): string[] {
@@ -99,9 +122,14 @@ function vpnDetail(s: AppState, v: Row, width: number, maxLines: number): string
     body.push(kv(' users', paint(`${v.clients_active} connected`, { fg: 'dim' }), 7));
   }
   const t = v.traffic;
-  body.push(
-    kv(' data', paint(`today ${bytesHuman(t.daily_bytes)} · wk ${bytesHuman(t.weekly_bytes)} · mo ${bytesHuman(t.monthly_bytes)} · all ${bytesHuman(t.total_bytes)}`, { fg: 'dim' }), 7),
-  );
+  if (width < 60) {
+    body.push(kv(' data', paint(`today ${bytesHuman(t.daily_bytes)} · wk ${bytesHuman(t.weekly_bytes)}`, { fg: 'dim' }), 7));
+    body.push(kv('', paint(`mo ${bytesHuman(t.monthly_bytes)} · all ${bytesHuman(t.total_bytes)}`, { fg: 'dim' }), 7));
+  } else {
+    body.push(
+      kv(' data', paint(`today ${bytesHuman(t.daily_bytes)} · wk ${bytesHuman(t.weekly_bytes)} · mo ${bytesHuman(t.monthly_bytes)} · all ${bytesHuman(t.total_bytes)}`, { fg: 'dim' }), 7),
+    );
+  }
   const days = certDays(v);
   const certVal =
     v.cert_expiry == null

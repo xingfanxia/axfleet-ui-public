@@ -83,7 +83,14 @@ function hostDetail(s: AppState, h: FleetHost, width: number, maxLines: number):
     .map((d) => `${d.mount} ${paint(`${Math.round(d.used_pct)}%`, { fg: utilColor(d.used_pct) })} ${paint(`${bytesHuman(d.used_gb * 2 ** 30)}/${bytesHuman(d.total_gb * 2 ** 30)}`, { fg: 'faint' })}`)
     .join('  ');
   body.push(kv(' dsk', disks, 5));
-  body.push(kv(' net', tailscaleLine(h), 5));
+  // narrow: agents/mosh drop to a continuation line instead of truncating off
+  const net = tailscaleParts(h);
+  if (width < 60 && net.length > 1) {
+    body.push(kv(' net', paint(net[0]!, { fg: 'dim' }), 5));
+    body.push(kv('', paint(net.slice(1).join(' · '), { fg: 'dim' }), 5));
+  } else {
+    body.push(kv(' net', paint(net.join(' · '), { fg: 'dim' }), 5));
+  }
   body.push(...serviceLines(snap.services.data, inner, Math.max(1, maxLines - body.length - 3)));
   const probs = s.fleet?.problems.filter((p) => p.host_id === h.host_id) ?? [];
   for (const p of probs.slice(0, Math.max(0, maxLines - body.length - 2))) body.push(problemLine(p));
@@ -91,7 +98,7 @@ function hostDetail(s: AppState, h: FleetHost, width: number, maxLines: number):
   return box(body.slice(0, Math.max(1, maxLines - 2)), width, { title: `${h.display_name} · ${truncate(h.role, 40)}`, meta });
 }
 
-function tailscaleLine(h: FleetHost): string {
+function tailscaleParts(h: FleetHost): string[] {
   const ts = h.snapshot?.tailscale;
   const agents = h.snapshot?.agents.data;
   const mosh = h.snapshot?.mosh.data;
@@ -103,7 +110,7 @@ function tailscaleLine(h: FleetHost): string {
   }
   if (agents) parts.push(`agents ${agents.claude_procs}cl/${agents.codex_procs}cx`);
   if (mosh && mosh.active_sessions > 0) parts.push(`mosh ${mosh.active_sessions}`);
-  return paint(parts.join(' · '), { fg: 'dim' });
+  return parts;
 }
 
 function serviceLines(services: ServiceInfo[] | undefined, width: number, maxLines: number): string[] {

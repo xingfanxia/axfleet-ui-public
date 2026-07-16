@@ -70,15 +70,19 @@ export function renderAccounts(s: AppState, width: number): string[] {
         d.last_error ? paint(` err: ${truncate(d.last_error, 30)}`, { fg: 'danger' }) : '',
       ].join('');
       const fc = d.forecast ? paint(` → next ${d.forecast.action}${d.forecast.to ? ` ${d.forecast.to}` : ''}`, { fg: 'faint' }) : '';
-      lines.push(
+      const head =
         ' ' +
-          paint(padEnd(d.host, 6), { fg: 'text' }) +
-          paint(padEnd(d.version ?? '?', 6), { fg: 'faint' }) +
-          paint(' active ', { fg: 'faint' }) +
-          paint(d.active_profile ?? '—', { fg: 'accent' }) +
-          fc +
-          flags,
-      );
+        paint(padEnd(d.host, 6), { fg: 'text' }) +
+        paint(padEnd(d.version ?? '?', 6), { fg: 'faint' }) +
+        paint(' active ', { fg: 'faint' }) +
+        paint(d.active_profile ?? '—', { fg: 'accent' });
+      if (width < 60 && fc) {
+        // narrow: the switch forecast gets its own line — it's the actionable bit
+        lines.push(head + flags);
+        lines.push('      ' + fc); // fc carries its own leading space inside the paint
+      } else {
+        lines.push(head + fc + flags);
+      }
     }
     const chain = merged.daemons[0]?.fallback_chain ?? [];
     if (chain.length > 0) lines.push(paint(' chain  ', { fg: 'faint' }) + paint(chain.join(' → '), { fg: 'dim' }));
