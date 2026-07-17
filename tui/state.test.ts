@@ -12,6 +12,7 @@ import {
   selectedHostId,
   setTab,
   TABS,
+  tokensSwipeIntent,
 } from './state';
 
 function host(id: string, singbox = false): FleetHost {
@@ -117,6 +118,47 @@ describe('tokens range', () => {
     s = cycleTokensRange(s);
     expect(s.tokensRange).toBe('7d');
     expect(s.tokensFetchedAt).toBeNull();
+  });
+
+  test('full traversal in both directions (every hop pinned, not just the wraps)', () => {
+    const forward = ['7d', '30d', '90d', 'today'];
+    const backward = ['90d', '30d', '7d', 'today'];
+    let s = initialState('x'); // today
+    for (const want of forward) {
+      s = cycleTokensRange(s, 1);
+      expect(s.tokensRange).toBe(want as ReturnType<typeof initialState>['tokensRange']);
+    }
+    for (const want of backward) {
+      s = cycleTokensRange(s, -1);
+      expect(s.tokensRange).toBe(want as ReturnType<typeof initialState>['tokensRange']);
+    }
+  });
+
+  test('backward cycle invalidates the cache too', () => {
+    const s = cycleTokensRange({ ...initialState('x'), tokensFetchedAt: 123 }, -1);
+    expect(s.tokensRange).toBe('90d');
+    expect(s.tokensFetchedAt).toBeNull();
+  });
+
+  test('resets scroll — the new range starts at the top', () => {
+    const s = cycleTokensRange({ ...initialState('x'), scroll: 12 });
+    expect(s.scroll).toBe(0);
+  });
+});
+
+describe('tokens swipe routing', () => {
+  test('overflowing body → swipes always scroll (edge-cycling was rejected in review)', () => {
+    expect(tokensSwipeIntent(10, true)).toBe('scroll');
+    expect(tokensSwipeIntent(10, false)).toBe('scroll');
+    expect(tokensSwipeIntent(1, true)).toBe('scroll');
+  });
+
+  test('body fits → a settled swipe cycles', () => {
+    expect(tokensSwipeIntent(0, true)).toBe('cycle');
+  });
+
+  test('body fits → burst tail is swallowed until settled', () => {
+    expect(tokensSwipeIntent(0, false)).toBe('ignore');
   });
 });
 

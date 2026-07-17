@@ -132,6 +132,26 @@ it scroll-jitters the pane and then vetoes itself.
 Wheel-left/right also switch tabs, **debounced (~250 ms)** — some terminals
 report one swipe as a burst of tilt-wheel events.
 
+### Overloading vertical swipe with a second meaning (paging)
+
+When a tab wants vertical swipe to *do something* (here: cycle the Tokens time
+range) on top of its default scroll meaning, three rules survived adversarial
+review; the obvious design ("scroll until the edge, then cycle") failed it:
+
+- **Split by overflow, not by edge.** Body fits the pane ⇒ there is nothing to
+  scroll, so swipe = the action. Body overflows ⇒ swipe = scroll ONLY, edges
+  clamp like every other tab. Edge-triggered actions are a trap: the pane
+  *opens* at the top edge, so a reflexive desktop wheel-up fires the action
+  instantly, and a bottom overshoot throws away the reading position.
+- **Debounce per burst AND budget per gesture.** A settle window (~400 ms of
+  quiet before an event may act) collapses a wheel burst to one action — but
+  it does nothing for slow Mouse-Mode drags, whose row-crossings can each
+  arrive slower than the window. Give drags an explicit budget: at most one
+  action between press and release, reset on press.
+- **Make the hint conditional.** If the pane advertises "swipe to cycle" while
+  overflow means swipe scrolls, the feature reads as broken. Render the hint
+  from the same predicate the input router uses (fits vs overflows).
+
 ### Hit-testing without a widget tree
 
 No retained widgets — hit-testing is two rules:

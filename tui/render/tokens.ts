@@ -1,6 +1,10 @@
 /**
  * Tokens tab — cost + usage from the hub's Turso-backed tokens surface.
- * `t` cycles the range (today/7d/30d/90d); bars scale to the max row.
+ * `t` and a tap on the range header always cycle the range
+ * (today/7d/30d/90d); a vertical swipe cycles only when the body fits the
+ * pane (when it overflows, swipes scroll — see tokensSwipeIntent), so the
+ * header hint advertises swipe only in the fits case. Bars scale to the max
+ * row.
  */
 import type { TokensDetail } from '../../contracts/types';
 import { ago, compactTokens, usd } from '../../lib/format';
@@ -9,24 +13,22 @@ import { paint } from '../theme';
 import type { AppState } from '../state';
 import { sparkline } from './widgets';
 
-export function renderTokens(s: AppState, width: number): string[] {
+export function renderTokens(s: AppState, width: number, bodyH: number): string[] {
   const narrow = width < 60;
   const lines: string[] = [];
   const rangeLabel = s.tokensRange === 'today' ? 'today (UTC)' : s.tokensRange;
-  const head = ` range ${paint(rangeLabel, { fg: 'accent', bold: true })} ${paint('(t to cycle)', { fg: 'faint' })}`;
+  const head = (hint: string): string =>
+    ` range ${paint(rangeLabel, { fg: 'accent', bold: true })} ${paint(hint, { fg: 'faint' })}`;
   if (!s.tokens) {
-    lines.push(head);
+    lines.push(head('(t/swipe/tap to cycle)'));
     lines.push(s.tokensError ? paint(` tokens unavailable: ${s.tokensError}`, { fg: 'warning' }) : paint(' loading tokens…', { fg: 'faint' }));
     return lines;
   }
   const d = s.tokens;
   const asOf = paint(`as of ${d.as_of ? `${ago(d.as_of)} ago` : '—'}`, { fg: 'faint' });
-  if (narrow) {
-    lines.push(head);
-    lines.push(' ' + asOf);
-  } else {
-    lines.push(head + '   ' + asOf);
-  }
+  const headLine = (hint: string): string => (narrow ? head(hint) : head(hint) + '   ' + asOf);
+  lines.push(headLine('(t/swipe/tap to cycle)'));
+  if (narrow) lines.push(' ' + asOf);
   lines.push('');
   lines.push(
     ` ${paint(usd(d.totals.cost_usd), { fg: 'text', bold: true })} ${paint(`· ${compactTokens(d.totals.total_tokens)} tokens · ${d.totals.messages} messages`, { fg: 'dim' })}`,
@@ -62,6 +64,9 @@ export function renderTokens(s: AppState, width: number): string[] {
     lines.push('');
     lines.push(paint(` stale collectors: ${s.fleet.tokens.stale_instances.join(', ')}`, { fg: 'warning' }));
   }
+  // Overflowing body → swipes scroll instead of cycling, so don't advertise
+  // swipe-to-cycle (review catch: the unconditional hint read as broken).
+  if (lines.length > bodyH) lines[0] = headLine('(t/tap to cycle)');
   return lines.map((l) => truncate(l, width));
 }
 

@@ -363,6 +363,11 @@ describe('narrow (phone) mode — stacked rows keep full information at 45 cols'
     expect(text).toContain('claude-fable-5');
   });
 
+  test('tokens: range-cycle hint survives at 45 cols (fits case → swipe advertised)', () => {
+    const text = textAt('tokens');
+    expect(text).toContain('(t/swipe/tap to cycle)');
+  });
+
   test('wide layouts are byte-identical to before (narrow paths gated)', () => {
     const text = textAt('alerts', 120, 45);
     expect(text).toContain('api-gateway failed');

@@ -133,11 +133,31 @@ export function applyTokensError(s: AppState, error: string, now?: number): AppS
   return { ...s, tokensError: error, tokensFetchedAt: now ?? Date.now() };
 }
 
-export function cycleTokensRange(s: AppState): AppState {
+export function cycleTokensRange(s: AppState, delta: 1 | -1 = 1): AppState {
   const ranges: TokenRange[] = ['today', '7d', '30d', '90d'];
-  const next = ranges[(ranges.indexOf(s.tokensRange) + 1) % ranges.length] ?? 'today';
-  // Invalidate the cache so the loop refetches for the new range.
-  return { ...s, tokensRange: next, tokensFetchedAt: null };
+  const next = ranges[(ranges.indexOf(s.tokensRange) + delta + ranges.length) % ranges.length] ?? 'today';
+  // Invalidate the cache so the loop refetches for the new range, and reset
+  // scroll — a range cycled via `t`/tap while scrolled down must start at the
+  // top, not at a stale offset into content that's about to be replaced.
+  return { ...s, tokensRange: next, tokensFetchedAt: null, scroll: 0 };
+}
+
+/**
+ * Vertical-swipe routing on the tokens tab. When the body OVERFLOWS the pane,
+ * a swipe always scrolls and the edges clamp exactly like every other tab —
+ * cycling at an edge was rejected in review: the tab opens at the top edge, so
+ * a reflexive desktop wheel-up would instantly flip the range (and refetch),
+ * and a bottom overshoot would throw away the reading position. When the body
+ * FITS (the normal phone-portrait case), there is nothing to scroll, so a
+ * settled swipe cycles the range. `settled` is the caller's debounce verdict —
+ * a phone swipe arrives as a BURST of wheel events, so only a gesture
+ * separated from prior swipe activity by a quiet window may cycle; the rest
+ * of the burst is swallowed (a cycle drops the tokens cache and refetches, so
+ * one gesture must mean one cycle).
+ */
+export function tokensSwipeIntent(maxScroll: number, settled: boolean): 'scroll' | 'cycle' | 'ignore' {
+  if (maxScroll > 0) return 'scroll'; // scrollBy clamps at the edges (identity → no redraw)
+  return settled ? 'cycle' : 'ignore';
 }
 
 export function applyHistory(s: AppState, h: HostHistory): AppState {

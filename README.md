@@ -69,6 +69,14 @@ that multiplexer's prefix chord (`Ctrl-B n`/`p`). Two working recipes:
 Zero-config alternatives: tap the tab labels, D-pad `←`/`→`, `n`/`p` keys, or
 Mouse Mode drag-swipe. Vertical swipes and taps work out of the box.
 
+On the Tokens tab, a vertical swipe cycles the time range when the body fits
+the pane (the normal phone-portrait case) — wheel bursts are debounced by a
+settle window and a drag may cycle at most once per gesture. When the body
+overflows, swipes scroll like every other tab (edge-cycling was rejected: the
+tab opens at the top edge, so a reflexive desktop wheel-up would flip the
+range) and the header hint stops advertising swipe. Tapping the range header
+always cycles.
+
 ## The seven tabs
 
 | Tab | What it shows |

@@ -68,7 +68,7 @@ function renderPane(s: AppState, cols: number, bodyH: number): string[] {
     case 'agents':
       return renderAgents(s, cols);
     case 'tokens':
-      return renderTokens(s, cols);
+      return renderTokens(s, cols, bodyH);
     case 'accounts':
       return renderAccounts(s, cols);
     case 'gateways':

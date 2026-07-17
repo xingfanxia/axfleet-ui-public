@@ -29,6 +29,7 @@ import {
   selectedHostId,
   setTab,
   TABS,
+  tokensSwipeIntent,
   type AppState,
 } from './state';
 import { initTheme } from './theme';
@@ -168,6 +169,32 @@ async function main(): Promise<void> {
     else update(scrollBy(state, delta, Math.max(0, bodyTotal - (term.rows - 4))));
   };
 
+  // Tokens tab: when the body fits the pane (normal phone portrait), a
+  // vertical swipe cycles the time range — the phone-native alternative to
+  // `t`, which needs the keyboard up on Moshi. When it overflows, swipes just
+  // scroll (see tokensSwipeIntent for why edge-cycling was rejected). Swipes
+  // land as wheel BURSTS (drags as scroll streams), so cycling requires a
+  // quiet SETTLE window since the last swipe activity — one burst = one cycle
+  // — and a drag gesture may cycle at most ONCE between press and release
+  // (dragCycled), because a slow drag's row-crossings can each be >SETTLE
+  // apart and would otherwise whipsaw through several ranges.
+  const SWIPE_SETTLE_MS = 400;
+  let lastTokensSwipeAt = 0;
+  let dragCycled = false; // reset on every mouse press
+  const tokensSwipe = (dir: 1 | -1, drag?: { dy: number }): void => {
+    if (drag && dragCycled) return; // this gesture already spent its cycle
+    const now = Date.now();
+    const maxScroll = Math.max(0, bodyTotal - (term.rows - 4));
+    const settled = now - lastTokensSwipeAt > SWIPE_SETTLE_MS;
+    const intent = tokensSwipeIntent(maxScroll, settled);
+    lastTokensSwipeAt = now;
+    if (intent === 'scroll') update(scrollBy(state, drag ? drag.dy : dir, maxScroll));
+    else if (intent === 'cycle') {
+      if (drag) dragCycled = true;
+      update(cycleTokensRange(state, dir));
+    }
+  };
+
   // tmux/herdr-style prefix chord: Ctrl-B then n/p/digit. This is what Moshi's
   // swipe gesture actually emits once it detects a "herdr" session (see README
   // Moshi note) — and it matches mux muscle memory everywhere else.
@@ -241,7 +268,14 @@ async function main(): Promise<void> {
     // Fleet/vpn selectable lists render from the top of the body pane, one line
     // per item (the same invariant followSel relies on) — so pane line == index.
     const paneY = y - BODY_TOP_ROW + state.scroll;
-    if (y >= BODY_TOP_ROW && y < term.rows - 1 && paneY >= 0 && paneY < selectableCount(state)) {
+    if (y < BODY_TOP_ROW || y >= term.rows - 1) return;
+    // Tokens: the range header is pane line 0 — tapping it cycles the range
+    // (the guaranteed touch path; swipe cycles only when the body fits).
+    if (state.tab === 'tokens' && paneY === 0) {
+      update(cycleTokensRange(state));
+      return;
+    }
+    if (paneY >= 0 && paneY < selectableCount(state)) {
       if (paneY !== state.sel) update(followSel({ ...state, sel: paneY }, term.rows - 4));
     }
   };
@@ -251,10 +285,12 @@ async function main(): Promise<void> {
   const onMouse = (m: Mouse): void => {
     switch (m.kind) {
       case 'wheel-up':
-        moveOrScroll(-1);
+        if (state.tab === 'tokens') tokensSwipe(-1);
+        else moveOrScroll(-1);
         return;
       case 'wheel-down':
-        moveOrScroll(1);
+        if (state.tab === 'tokens') tokensSwipe(1);
+        else moveOrScroll(1);
         return;
       case 'wheel-left':
       case 'wheel-right': {
@@ -267,12 +303,15 @@ async function main(): Promise<void> {
         return;
       }
       default: {
+        if (m.kind === 'press') dragCycled = false; // new gesture, new cycle budget
         const step = gestureStep(gesture, m);
         gesture = step.g;
         const a = step.action;
         if (!a) return;
-        if (a.type === 'scroll') update(scrollBy(state, a.dy, Math.max(0, bodyTotal - (term.rows - 4))));
-        else if (a.type === 'swipe') update(cycleTab(state, a.dir === 'left' ? 1 : -1));
+        if (a.type === 'scroll') {
+          if (state.tab === 'tokens') tokensSwipe(a.dy > 0 ? 1 : -1, { dy: a.dy });
+          else update(scrollBy(state, a.dy, Math.max(0, bodyTotal - (term.rows - 4))));
+        } else if (a.type === 'swipe') update(cycleTab(state, a.dir === 'left' ? 1 : -1));
         else onTap(a.x, a.y);
       }
     }
