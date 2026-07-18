@@ -712,7 +712,16 @@ export interface TokensSummary {
    * until the tracker writes agent-tagged rows (e.g. agent='qa-bot');
    * an empty array is the correct steady state, not an error.
    */
-  by_agent: Array<{ agent: string; today_cost_usd: number; today_tokens: number; week_cost_usd: number; week_tokens: number }>;
+  by_agent: Array<{
+    agent: string;
+    today_cost_usd: number;
+    today_tokens: number;
+    week_cost_usd: number;
+    week_tokens: number;
+    /** all-time sums (no date filter); cost_usd is LiteLLM-priced = API-equivalent spend */
+    total_cost_usd: number;
+    total_tokens: number;
+  }>;
   stale_instances: string[]; // instances_v2.status != healthy or last_collect_at > 30h
 }
 
@@ -725,6 +734,9 @@ export interface TokensDetail {
   by_host: Array<{ instance_id: string; cost_usd: number; total_tokens: number }>;
   by_client: Array<{ client: string; cost_usd: number; total_tokens: number }>;
   by_model: Array<{ model: string; client: string; cost_usd: number; total_tokens: number }>;
+  /** top workspaces by total tokens in range (merged across per-client key
+   *  formats hub-side); attributed rows only, capped at 20 */
+  by_workspace: Array<{ workspace: string; cost_usd: number; total_tokens: number }>;
   daily: Array<{ date: string; cost_usd: number; total_tokens: number }>;
   /** last-48h intraday burn from usage_events_v2 hour buckets (first UI on this data) */
   hourly: Array<{ ts: string; cost_usd: number; total_tokens: number; instance_id: string }>;

@@ -782,9 +782,9 @@ export function buildTokensSummary(now: number): TokensSummary {
       { instance_id: 'mica', cost_usd: 0.92, total_tokens: 1_100_000 },
     ],
     by_agent: [
-      { agent: 'build-bot', today_cost_usd: 1.8, today_tokens: 3_200_000, week_cost_usd: 12.4, week_tokens: 21_000_000 },
-      { agent: 'review-bot', today_cost_usd: 0.7, today_tokens: 1_100_000, week_cost_usd: 5.1, week_tokens: 8_800_000 },
-      { agent: 'qa-bot', today_cost_usd: 0.4, today_tokens: 890_000, week_cost_usd: 2.9, week_tokens: 5_400_000 },
+      { agent: 'build-bot', today_cost_usd: 1.8, today_tokens: 3_200_000, week_cost_usd: 12.4, week_tokens: 21_000_000, total_cost_usd: 412.6, total_tokens: 690_000_000 },
+      { agent: 'review-bot', today_cost_usd: 0.7, today_tokens: 1_100_000, week_cost_usd: 5.1, week_tokens: 8_800_000, total_cost_usd: 168.9, total_tokens: 285_000_000 },
+      { agent: 'qa-bot', today_cost_usd: 0.4, today_tokens: 890_000, week_cost_usd: 2.9, week_tokens: 5_400_000, total_cost_usd: 96.3, total_tokens: 154_000_000 },
     ],
     stale_instances: [],
   };

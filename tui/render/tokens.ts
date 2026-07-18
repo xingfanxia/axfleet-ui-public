@@ -60,6 +60,15 @@ export function renderTokens(s: AppState, width: number, bodyH: number): string[
   // suffix is what used to push it off the edge
   lines.push(...barTable(models.map((r) => ({ label: narrow ? r.model : `${r.model} ${paint(`(${r.client})`, { fg: 'faint' })}`, cost: r.cost_usd, tokens: r.total_tokens })), width));
 
+  // by_workspace absent on a pre-upgrade hub — read defensively. Ranked and
+  // bar-scaled by TOKENS (the ask), unlike the cost-scaled tables above.
+  const workspaces = (d.by_workspace ?? []).slice(0, 10);
+  if (workspaces.length > 0) {
+    lines.push('');
+    lines.push(paint(' by workspace · top 10 by tokens', { fg: 'dim', bold: true }));
+    lines.push(...barTable(workspaces.map((r) => ({ label: r.workspace, cost: r.cost_usd, tokens: r.total_tokens })), width, 'tokens'));
+  }
+
   if (s.fleet?.tokens.stale_instances.length) {
     lines.push('');
     lines.push(paint(` stale collectors: ${s.fleet.tokens.stale_instances.join(', ')}`, { fg: 'warning' }));
@@ -70,16 +79,20 @@ export function renderTokens(s: AppState, width: number, bodyH: number): string[
   return lines.map((l) => truncate(l, width));
 }
 
-function barTable(rows: Array<{ label: string; cost: number; tokens: number }>, width: number): string[] {
+function barTable(
+  rows: Array<{ label: string; cost: number; tokens: number }>,
+  width: number,
+  barBy: 'cost' | 'tokens' = 'cost',
+): string[] {
   if (rows.length === 0) return [paint('   none', { fg: 'faint' })];
-  const max = Math.max(1e-9, ...rows.map((r) => r.cost));
+  const max = Math.max(1e-9, ...rows.map((r) => r[barBy]));
   // Narrow: the bar shrinks before the label does — a readable name beats
   // two extra bar cells on a phone.
   const narrow = width < 60;
   const barW = narrow ? 5 : Math.max(6, Math.min(24, width - 16 - 22));
   const labelW = narrow ? Math.max(12, width - barW - 22) : 16;
   return rows.map((r) => {
-    const fill = Math.max(r.cost > 0 ? 1 : 0, Math.round((r.cost / max) * barW));
+    const fill = Math.max(r[barBy] > 0 ? 1 : 0, Math.round((r[barBy] / max) * barW));
     const bar = paint('▮'.repeat(fill), { fg: 'accent' }) + paint('▯'.repeat(barW - fill), { fg: 'lineStrong' });
     return `   ${padEnd(truncate(r.label, labelW), labelW)} ${bar} ${padStart(usd(r.cost), 8)} ${paint(padStart(compactTokens(r.tokens), 7), { fg: 'faint' })}`;
   });

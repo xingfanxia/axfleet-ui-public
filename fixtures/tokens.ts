@@ -72,6 +72,16 @@ export function buildTokensDetail(range: TokenRange, now: number): TokensDetail 
       { model: 'gemini-3-flash', client: 'openclaw', cost_usd: r2(totalCost * 0.02), total_tokens: Math.round(totalTokens * 0.02) },
       { model: 'claude-haiku-4-5', client: 'claude-code', cost_usd: r2(totalCost * 0.05), total_tokens: Math.round(totalTokens * 0.05) },
     ],
+    // merged display labels (the real hub folds per-client key formats into
+    // one label per project); ranked by tokens, not cost
+    by_workspace: [
+      { workspace: 'apps/atlas-web', cost_usd: r2(totalCost * 0.24), total_tokens: Math.round(totalTokens * 0.27) },
+      { workspace: 'tools/forge-cli', cost_usd: r2(totalCost * 0.21), total_tokens: Math.round(totalTokens * 0.22) },
+      { workspace: 'services/basalt-api', cost_usd: r2(totalCost * 0.18), total_tokens: Math.round(totalTokens * 0.17) },
+      { workspace: 'apps/mica-docs', cost_usd: r2(totalCost * 0.12), total_tokens: Math.round(totalTokens * 0.13) },
+      { workspace: 'infra/fleet-hub', cost_usd: r2(totalCost * 0.1), total_tokens: Math.round(totalTokens * 0.09) },
+      { workspace: 'labs/scratchpad', cost_usd: r2(totalCost * 0.06), total_tokens: Math.round(totalTokens * 0.05) },
+    ],
     daily,
     hourly,
     // Spikes are HOURLY anomalies (>3× the 30d same-hour baseline) — absolute

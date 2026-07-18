@@ -138,6 +138,7 @@ function loadedState(): AppState {
       ],
       by_client: [],
       by_model: [{ model: 'claude-fable-5', client: 'claude-code', cost_usd: 8, total_tokens: 800_000 }],
+      by_workspace: [{ workspace: 'apps/atlas-web', cost_usd: 6, total_tokens: 500_000 }],
       daily: [
         { date: '2026-07-10', cost_usd: 10, total_tokens: 1e6 },
         { date: '2026-07-11', cost_usd: 12.4, total_tokens: 1.2e6 },

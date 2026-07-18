@@ -18,6 +18,7 @@ function tokensState(): AppState {
     by_host: [{ instance_id: 'atlas', cost_usd: 10, total_tokens: 800_000 }],
     by_client: [],
     by_model: [{ model: 'claude-opus-4-8', client: 'claude-code', cost_usd: 10, total_tokens: 800_000 }],
+    by_workspace: [],
     daily: [],
     hourly: [],
     spikes: [],
