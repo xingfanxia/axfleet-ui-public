@@ -134,7 +134,7 @@ export function applyTokensError(s: AppState, error: string, now?: number): AppS
 }
 
 export function cycleTokensRange(s: AppState, delta: 1 | -1 = 1): AppState {
-  const ranges: TokenRange[] = ['today', '7d', '30d', '90d'];
+  const ranges: TokenRange[] = ['today', '7d', '30d', '90d', 'all'];
   const next = ranges[(ranges.indexOf(s.tokensRange) + delta + ranges.length) % ranges.length] ?? 'today';
   // Invalidate the cache so the loop refetches for the new range, and reset
   // scroll — a range cycled via `t`/tap while scrolled down must start at the

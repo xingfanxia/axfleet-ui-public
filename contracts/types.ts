@@ -697,7 +697,7 @@ export function markResolved(
 // Tokens (hub ← the token tracker's usage DB)
 // ---------------------------------------------------------------------------
 
-export type TokenRange = 'today' | '7d' | '30d' | '90d';
+export type TokenRange = 'today' | '7d' | '30d' | '90d' | 'all';
 
 export interface TokensSummary {
   /** max(collected_at) across instances — honesty badge for ≤6h collection lag */
@@ -733,7 +733,14 @@ export interface TokensDetail {
   all_time: { cost_usd: number; total_tokens: number } | null;
   by_host: Array<{ instance_id: string; cost_usd: number; total_tokens: number }>;
   by_client: Array<{ client: string; cost_usd: number; total_tokens: number }>;
-  by_model: Array<{ model: string; client: string; cost_usd: number; total_tokens: number }>;
+  by_model: Array<{
+    model: string;
+    /** Compatibility display string; multiple contributing harnesses are joined. */
+    client: string;
+    harnesses?: string[];
+    cost_usd: number;
+    total_tokens: number;
+  }>;
   /** top workspaces by total tokens in range (merged across per-client key
    *  formats hub-side); attributed rows only, capped at 20 */
   by_workspace: Array<{ workspace: string; cost_usd: number; total_tokens: number }>;

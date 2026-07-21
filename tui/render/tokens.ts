@@ -1,7 +1,7 @@
 /**
  * Tokens tab — cost + usage from the hub's Turso-backed tokens surface.
  * `t` and a tap on the range header always cycle the range
- * (today/7d/30d/90d); a vertical swipe cycles only when the body fits the
+ * (today/7d/30d/90d/all); a vertical swipe cycles only when the body fits the
  * pane (when it overflows, swipes scroll — see tokensSwipeIntent), so the
  * header hint advertises swipe only in the fits case. Bars scale to the max
  * row.
@@ -16,7 +16,7 @@ import { sparkline } from './widgets';
 export function renderTokens(s: AppState, width: number, bodyH: number): string[] {
   const narrow = width < 60;
   const lines: string[] = [];
-  const rangeLabel = s.tokensRange === 'today' ? 'today (UTC)' : s.tokensRange;
+  const rangeLabel = s.tokensRange === 'today' ? 'today (UTC)' : s.tokensRange === 'all' ? 'all time' : s.tokensRange;
   const head = (hint: string): string =>
     ` range ${paint(rangeLabel, { fg: 'accent', bold: true })} ${paint(hint, { fg: 'faint' })}`;
   if (!s.tokens) {
@@ -33,7 +33,7 @@ export function renderTokens(s: AppState, width: number, bodyH: number): string[
   lines.push(
     ` ${paint(usd(d.totals.cost_usd), { fg: 'text', bold: true })} ${paint(`· ${compactTokens(d.totals.total_tokens)} tokens · ${d.totals.messages} messages`, { fg: 'dim' })}`,
   );
-  if (d.all_time) {
+  if (d.all_time && s.tokensRange !== 'all') {
     lines.push(
       ` ${paint('all time', { fg: 'faint' })} ${paint(usd(d.all_time.cost_usd), { fg: 'accent2' })} ${paint(`· ${compactTokens(d.all_time.total_tokens)} tokens`, { fg: 'faint' })}`,
     );
@@ -54,11 +54,15 @@ export function renderTokens(s: AppState, width: number, bodyH: number): string[
   lines.push(...barTable(d.by_host.map((r) => ({ label: r.instance_id, cost: r.cost_usd, tokens: r.total_tokens })), width));
 
   lines.push('');
+  lines.push(paint(' by harness', { fg: 'dim', bold: true }));
+  lines.push(...barTable(d.by_client.map((r) => ({ label: r.client, cost: r.cost_usd, tokens: r.total_tokens })), width));
+
+  lines.push('');
   lines.push(paint(' by model', { fg: 'dim', bold: true }));
   const models = [...d.by_model].sort((a, b) => b.cost_usd - a.cost_usd).slice(0, 6);
-  // narrow drops the (client) suffix — the model name is the signal and the
+  // narrow drops the (harness) suffix — the model name is the signal and the
   // suffix is what used to push it off the edge
-  lines.push(...barTable(models.map((r) => ({ label: narrow ? r.model : `${r.model} ${paint(`(${r.client})`, { fg: 'faint' })}`, cost: r.cost_usd, tokens: r.total_tokens })), width));
+  lines.push(...barTable(models.map((r) => ({ label: narrow ? r.model : `${r.model} ${paint(`(${(r.harnesses ?? [r.client]).join(' + ')})`, { fg: 'faint' })}`, cost: r.cost_usd, tokens: r.total_tokens })), width));
 
   // by_workspace absent on a pre-upgrade hub — read defensively. Ranked and
   // bar-scaled by TOKENS (the ask), unlike the cost-scaled tables above.

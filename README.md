@@ -84,7 +84,7 @@ always cycles.
 | **Fleet** | Host rows (cpu/mem/disk cells + expected-service KPI) and a detail box with htop-style gauges, a 48h cpu sparkline, disks, tailnet line, and per-host problems |
 | **VPN** | sing-box boxes: state, version + pending update, live ↑/↓ throughput sparklines, connected clients, 30d traffic, cert countdown, subscription links |
 | **Agents** | zylos personas fleet-wide (runtime tier, context %, idle, unanswered-message alerts, today tokens/cost), standalone tmux codex loops with per-agent token joins, openclaw gateway + per-bot connectivity |
-| **Tokens** | Cost + usage from the usage DB: totals, all-time, daily sparkline, spike flags, per-host and per-model bars; `t` cycles today/7d/30d/90d |
+| **Tokens** | Cost + usage from the usage DB: totals, all-time, daily sparkline, spike flags, per-host, per-harness, and per-model bars; `t` cycles today/7d/30d/90d/all |
 | **Accounts** | Provider account usage deduped across hosts (5h/7d/opus window bars, ccu-style), per-host daemon lines with switch forecasts, machine-wide token feeds, codex per-host snapshots with freshness grading, and per-host auth posture |
 | **Gateways** | App-level health that "container is Up" misses: omni per-source sync freshness (the shared ok/flaky/syncing/stale/dead classifier), embed-queue backlog, New API channel health, Factorio server telemetry, newsletter rollups |
 | **Alerts** | Active problems annotated with push-delivery status, the out-of-band DM log (delivered/failed, active/resolved), endpoint health, and the rolling event log |

@@ -11,7 +11,7 @@ const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const iso = (t: number): string => new Date(t).toISOString();
 
-const RANGE_DAYS: Record<TokenRange, number> = { today: 1, '7d': 7, '30d': 30, '90d': 90 };
+const RANGE_DAYS: Record<TokenRange, number> = { today: 1, '7d': 7, '30d': 30, '90d': 90, all: 180 };
 
 /** Day-spaced samples need a period that isn't a small rational multiple of a
  *  day — the default 8-min period divides a day exactly 180×, which aliases
@@ -31,8 +31,17 @@ export function buildTokensDetail(range: TokenRange, now: number): TokensDetail 
   // The 'today' range must agree with the header KPI + summary by_host — both
   // surfaces show "today cost" and in the real system both come from the same
   // usage DB. Longer ranges sum the generated daily series.
-  const totalCost = range === 'today' ? TODAY_COST_USD : daily.slice(-days).reduce((a, d) => a + d.cost_usd, 0);
-  const totalTokens = range === 'today' ? TODAY_TOKENS : daily.slice(-days).reduce((a, d) => a + d.total_tokens, 0);
+  const allTime = { cost_usd: 4_210, total_tokens: 3_100_000_000 };
+  const totalCost = range === 'today'
+    ? TODAY_COST_USD
+    : range === 'all'
+      ? allTime.cost_usd
+      : daily.slice(-days).reduce((a, d) => a + d.cost_usd, 0);
+  const totalTokens = range === 'today'
+    ? TODAY_TOKENS
+    : range === 'all'
+      ? allTime.total_tokens
+      : daily.slice(-days).reduce((a, d) => a + d.total_tokens, 0);
 
   const hourly = Array.from({ length: 48 }, (_, i) => {
     const t = now - (47 - i) * HOUR;
@@ -52,7 +61,7 @@ export function buildTokensDetail(range: TokenRange, now: number): TokensDetail 
       total_tokens: totalTokens,
       messages: Math.round(320 * days),
     },
-    all_time: { cost_usd: 4_210, total_tokens: 3_100_000_000 },
+    all_time: allTime,
     by_host: [
       { instance_id: 'forge', cost_usd: r2(totalCost * 0.42), total_tokens: Math.round(totalTokens * 0.4) },
       { instance_id: 'atlas', cost_usd: r2(totalCost * 0.28), total_tokens: Math.round(totalTokens * 0.3) },
@@ -60,17 +69,17 @@ export function buildTokensDetail(range: TokenRange, now: number): TokensDetail 
       { instance_id: 'mica', cost_usd: r2(totalCost * 0.07), total_tokens: Math.round(totalTokens * 0.08) },
     ],
     by_client: [
-      { client: 'claude-code', cost_usd: r2(totalCost * 0.61), total_tokens: Math.round(totalTokens * 0.58) },
-      { client: 'codex-cli', cost_usd: r2(totalCost * 0.27), total_tokens: Math.round(totalTokens * 0.3) },
+      { client: 'claude', cost_usd: r2(totalCost * 0.61), total_tokens: Math.round(totalTokens * 0.58) },
+      { client: 'codex', cost_usd: r2(totalCost * 0.27), total_tokens: Math.round(totalTokens * 0.3) },
       { client: 'openclaw', cost_usd: r2(totalCost * 0.12), total_tokens: Math.round(totalTokens * 0.12) },
     ],
     by_model: [
-      { model: 'claude-opus-4-8', client: 'claude-code', cost_usd: r2(totalCost * 0.45), total_tokens: Math.round(totalTokens * 0.34) },
-      { model: 'claude-sonnet-5', client: 'claude-code', cost_usd: r2(totalCost * 0.16), total_tokens: Math.round(totalTokens * 0.24) },
-      { model: 'gpt-5.6', client: 'codex-cli', cost_usd: r2(totalCost * 0.22), total_tokens: Math.round(totalTokens * 0.25) },
+      { model: 'claude-opus-4-8', client: 'claude', cost_usd: r2(totalCost * 0.45), total_tokens: Math.round(totalTokens * 0.34) },
+      { model: 'claude-sonnet-5', client: 'claude', cost_usd: r2(totalCost * 0.16), total_tokens: Math.round(totalTokens * 0.24) },
+      { model: 'gpt-5.6-sol', client: 'codex + openclaw', harnesses: ['codex', 'openclaw'], cost_usd: r2(totalCost * 0.22), total_tokens: Math.round(totalTokens * 0.25) },
       { model: 'gpt-5.5-standard', client: 'openclaw', cost_usd: r2(totalCost * 0.1), total_tokens: Math.round(totalTokens * 0.1) },
       { model: 'gemini-3-flash', client: 'openclaw', cost_usd: r2(totalCost * 0.02), total_tokens: Math.round(totalTokens * 0.02) },
-      { model: 'claude-haiku-4-5', client: 'claude-code', cost_usd: r2(totalCost * 0.05), total_tokens: Math.round(totalTokens * 0.05) },
+      { model: 'claude-haiku-4-5', client: 'claude', cost_usd: r2(totalCost * 0.05), total_tokens: Math.round(totalTokens * 0.05) },
     ],
     // merged display labels (the real hub folds per-client key formats into
     // one label per project); ranked by tokens, not cost

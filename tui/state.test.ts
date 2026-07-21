@@ -121,8 +121,8 @@ describe('tokens range', () => {
   });
 
   test('full traversal in both directions (every hop pinned, not just the wraps)', () => {
-    const forward = ['7d', '30d', '90d', 'today'];
-    const backward = ['90d', '30d', '7d', 'today'];
+    const forward = ['7d', '30d', '90d', 'all', 'today'];
+    const backward = ['all', '90d', '30d', '7d', 'today'];
     let s = initialState('x'); // today
     for (const want of forward) {
       s = cycleTokensRange(s, 1);
@@ -136,7 +136,7 @@ describe('tokens range', () => {
 
   test('backward cycle invalidates the cache too', () => {
     const s = cycleTokensRange({ ...initialState('x'), tokensFetchedAt: 123 }, -1);
-    expect(s.tokensRange).toBe('90d');
+    expect(s.tokensRange).toBe('all');
     expect(s.tokensFetchedAt).toBeNull();
   });
 

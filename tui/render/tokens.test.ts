@@ -16,7 +16,7 @@ function tokensState(): AppState {
     totals: { cost_usd: 12.5, total_tokens: 1_000_000, messages: 42 },
     all_time: { cost_usd: 100, total_tokens: 9_000_000 },
     by_host: [{ instance_id: 'atlas', cost_usd: 10, total_tokens: 800_000 }],
-    by_client: [],
+    by_client: [{ client: 'codex', cost_usd: 2.5, total_tokens: 200_000 }],
     by_model: [{ model: 'claude-opus-4-8', client: 'claude-code', cost_usd: 10, total_tokens: 800_000 }],
     by_workspace: [],
     daily: [],
@@ -46,5 +46,21 @@ describe('tokens range hint honesty', () => {
     const lines = renderTokens(setTab(initialState('x'), 'tokens'), 45, 40);
     expect(stripAnsi(lines[0] ?? '')).toContain('(t/swipe/tap to cycle)');
     expect(stripAnsi(lines[1] ?? '')).toContain('loading tokens');
+  });
+});
+
+describe('range aggregation sections', () => {
+  test('renders the harness breakdown', () => {
+    const text = renderTokens(tokensState(), 80, 60).map(stripAnsi).join('\n');
+    expect(text).toContain('by harness');
+    expect(text).toContain('codex');
+  });
+
+  test('all-time selection does not repeat the all-time summary line', () => {
+    const base = tokensState();
+    const state: AppState = { ...base, tokensRange: 'all', tokens: { ...base.tokens!, range: 'all' } };
+    const text = renderTokens(state, 80, 60).map(stripAnsi).join('\n');
+    expect(text).toContain('range all time');
+    expect(text.match(/all time/g)).toHaveLength(1);
   });
 });
