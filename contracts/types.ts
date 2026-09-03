@@ -183,20 +183,22 @@ export interface ZylosInfo {
     /**
      * Last real (non system/scheduler) message timestamps from c4.db comm-bridge,
      * ISO-8601 UTC. `last_inbound_at` = newest message routed TO this persona
-     * (inbound rows carry target_instance). `last_outbound_at` = newest reply on
-     * any of the persona's chat_ids — outbound rows carry a BLANK target_instance,
-     * so they are mapped to the persona by chat id (instances.json chat_ids is the
-     * authoritative owner, since one chat can appear under several historical
-     * target_instances). Absent ⇒ no comm-bridge db / query unavailable / no such
-     * message.
+     * (inbound rows carry target_instance). `last_outbound_at` = newest reply
+     * tagged with this persona's target_instance, or a pre-cutover historical
+     * NULL-tagged reply on one of its chat_ids. Tagged ownership is authoritative
+     * and is never reassigned by chat; the chat_ids fallback exists only before
+     * the first real tagged outbound. Absent ⇒ no comm-bridge db / either
+     * outbound query unavailable / no such message.
      */
     last_inbound_at?: string | null;
     last_outbound_at?: string | null;
     /**
      * Delivered-but-unanswered user messages (c4.db comm-bridge): distinct
-     * endpoints whose most-recent delivered user inbound (last 6h) has no
-     * outbound reply since — the "agent went silent under traffic" signal
-     * this field surfaces. Absent ⇒ no comm-bridge db / query unavailable.
+     * channel/chat pairs whose most-recent delivered user inbound (last 6h) has
+     * no later-id real delivered reply for the same instance (or NULL legacy
+     * ownership). Failed sends and status notices do not count as replies. The
+     * "agent went silent under traffic" signal this field surfaces. Absent ⇒
+     * no comm-bridge db / query unavailable.
      */
     unanswered?: number;
     /** age (minutes) of the oldest such waiting endpoint; drives the alert. */
