@@ -5,14 +5,16 @@
 import { UNANSWERED_STUCK_MIN } from '../../contracts/types';
 import { buildAgentsView } from '../../lib/views';
 import { ago, compactTokens, usd } from '../../lib/format';
-import { padEnd, truncate, visibleWidth } from '../ansi';
+import { padEnd, truncate, visibleWidth, wrapPlain } from '../ansi';
+import { budgetLines, personaBudget, personaModel, quotaLines, runtimePolicyLines } from '../../lib/zylos-telemetry';
 import { paint } from '../theme';
 import type { AppState } from '../state';
 import { badge } from './widgets';
 
-export function renderAgents(s: AppState, width: number): string[] {
+export function renderAgents(s: AppState, width: number, now = Date.now()): string[] {
   if (!s.fleet) return [paint(' loading…', { fg: 'faint' })];
   const view = buildAgentsView(s.fleet.hosts, s.fleet.tokens);
+  const zylosHosts = new Map((view.zylos_hosts ?? []).map(host => [host.host_id, host]));
   // Narrow (phone) mode: activity metadata moves to a wrapped second line per
   // agent instead of truncating off the right edge.
   const narrow = width < 60;
@@ -61,6 +63,27 @@ export function renderAgents(s: AppState, width: number): string[] {
       for (const w of packParts(metaParts, width - 6)) lines.push(paint(`     ${w}`, { fg: 'dim' }));
     } else {
       lines.push(`  ${dot} ${name} ${rt} ${paint(metaParts.join(' · '), { fg: 'dim' })}${stuck}`.trimEnd());
+    }
+    const model = personaModel(p, now);
+    const cap = personaBudget(p, zylosHosts.get(p.host_id), now);
+    for (const text of wrapPlain(`${model.text}${cap ? ` · ${cap}` : ''}`, Math.max(1, width - 5))) {
+      lines.push(paint(`     ${text}`, { fg: model.warning ? 'warning' : 'dim' }));
+    }
+    if (model.warning && p.configured_model) {
+      for (const text of wrapPlain(`configured: ${p.configured_model} · ${p.configured_reasoning_effort ?? 'unknown'}`, Math.max(1, width - 5))) lines.push(paint(`     ${text}`, { fg: 'faint' }));
+    }
+  }
+
+  for (const host of view.zylos_hosts ?? []) {
+    if (!host.azure_budget && !host.provider_quotas?.length && !host.runtime_policy) continue;
+    section(`${host.display_name} · Zylos quota and budget`);
+    const details = [
+      ...runtimePolicyLines(host),
+      ...(host.provider_quotas ?? []).flatMap(quota => quotaLines(host, quota, now)),
+      ...budgetLines(host, now),
+    ];
+    for (const line of details) for (const text of wrapPlain(line.text, Math.max(1, width - 3))) {
+      lines.push(paint(`   ${text}`, { fg: line.warning ? 'warning' : 'dim' }));
     }
   }
 
@@ -131,7 +154,7 @@ export function renderAgents(s: AppState, width: number): string[] {
               ? paint('▲', { fg: 'warning' }) // connected but token going bad — mirrors the warn alert
               : paint('●', { fg: 'success' });
       const name = padEnd(truncate(a.name, 16), 16);
-      // "newapi-alice/gpt-5.5-standard" → "alice" (the routing key is the signal)
+      // "newapi-jermaine/gpt-5.5-standard" → "jermaine" (the routing key is the signal)
       const key = a.model ? a.model.split('/')[0]!.replace(/^newapi-/, '') : '?';
       const state =
         bot === null

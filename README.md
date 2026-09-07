@@ -37,7 +37,7 @@ Requires [bun](https://bun.sh).
 bun install
 bun run tui              # the demo
 bun run tui -- --compat  # force 256-color if your terminal lacks truecolor
-bun run verify           # typecheck + 129 tests
+bun run verify           # typecheck + tests
 ```
 
 Keys: `1-7` / `←→` / `tab` / `n`/`p` switch tabs · `j/k` move or scroll · `t`
@@ -81,12 +81,12 @@ always cycles.
 
 | Tab | What it shows |
 |---|---|
-| **Fleet** | Host rows (cpu/mem/disk cells + expected-service KPI) and a detail box with htop-style gauges, a 48h cpu sparkline, disks, tailnet line, and per-host problems |
+| **Fleet** | Host rows (cpu/mem/disk cells + expected-service KPI) and a detail box with htop-style gauges, a 48h cpu sparkline, disks, tailnet line, collector version, container storage checks, and per-host problems |
 | **VPN** | sing-box boxes: state, version + pending update, live ↑/↓ throughput sparklines, connected clients, 30d traffic, cert countdown, subscription links |
-| **Agents** | zylos personas fleet-wide (runtime tier, context %, idle, unanswered-message alerts, today tokens/cost), standalone tmux codex loops with per-agent token joins, openclaw gateway + per-bot connectivity |
+| **Agents** | zylos personas fleet-wide (observed model/effort versus configured policy, fresh subscription quota, a shared synthetic monthly Azure budget, context %, idle, unanswered-message alerts, today tokens/cost), standalone tmux codex loops with per-agent token joins, openclaw gateway + per-bot connectivity |
 | **Tokens** | Cost + usage from the usage DB: totals, all-time, daily sparkline, spike flags, per-host, per-harness, and per-model bars; `t` cycles today/7d/30d/90d/all |
 | **Accounts** | Provider account usage deduped across hosts (5h/7d/opus window bars, ccu-style), per-host daemon lines with switch forecasts, machine-wide token feeds, codex per-host snapshots with freshness grading, and per-host auth posture |
-| **Gateways** | App-level health that "container is Up" misses: omni per-source sync freshness (the shared ok/flaky/syncing/stale/dead classifier), embed-queue backlog, New API channel health, Factorio server telemetry, newsletter rollups |
+| **Gateways** | App-level health that "container is Up" misses: omni per-source sync freshness (the shared ok/flaky/syncing/stale/dead classifier), embed-queue backlog, New API version/model catalog and channel health, Factorio server telemetry, newsletter rollups |
 | **Alerts** | Active problems annotated with push-delivery status, the out-of-band DM log (delivered/failed, active/resolved), endpoint health, and the rolling event log |
 
 ## Building your own
@@ -119,3 +119,16 @@ an xterm-256 fallback.
 ## License
 
 MIT
+
+## Telemetry examples
+
+Forge demonstrates a shared monthly budget for Alice, Bob and Carol. Its
+admin, scheduler and group personas are exempt. The values are generated
+fixtures, including the dollar-equivalent rates and pending reservations;
+this demo contains no budget service, credentials or billing integration.
+
+Model observations, subscription quotas, budgets and container storage checks
+show unknown when their source is unavailable or stale. Configured model
+policy remains separate from observed model metadata. Atlas intentionally
+retains older telemetry without those optional fields to demonstrate a mixed
+collector rollout.
