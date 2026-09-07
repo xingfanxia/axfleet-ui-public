@@ -48,6 +48,7 @@ export interface HostSnapshot {
   cpu: { cores: number; load1: number; load5: number; load15: number; used_pct: number };
   mem: { total_mb: number; used_mb: number; used_pct: number };
   disks: Array<{ mount: string; total_gb: number; used_gb: number; used_pct: number }>;
+  storage_health?: Probe<StorageHealthInfo>;
   services: Probe<ServiceInfo[]>;
   tailscale: Probe<TailscaleInfo>;
   agents: Probe<AgentsInfo>;
@@ -77,6 +78,17 @@ export interface HostSnapshot {
    *  Deploy boundary: pre-upgrade collectors omit the key — read defensively. */
   auth?: Probe<AuthInfo> | null;
   mosh: Probe<{ server_present: boolean; active_sessions: number }>;
+}
+
+export interface StorageHealthInfo {
+  checked_at: string;
+  healthy: boolean;
+  data_mount: string;
+  containerd_source: string;
+  containerd_target: string;
+  docker_root: string;
+  checks: Array<{ id: string; ok: boolean }>;
+  coverage: 'runtime-bind-and-startup-guards';
 }
 
 export type Supervisor = 'systemd' | 'systemd-user' | 'pm2' | 'docker' | 'launchd' | 'tmux' | 'cron';
@@ -145,6 +157,31 @@ export interface AgentsInfo {
  */
 export const UNANSWERED_STUCK_MIN = 20;
 
+export interface ZylosAzureBudget {
+  checked_at: string;
+  month_utc: string;
+  members: string[];
+  limit_microusd: number;
+  reservation_microusd: number;
+  spent_microusd: number;
+  pending_microusd: number;
+  pending_requests: number;
+  available_microusd: number;
+  can_accept_request: boolean;
+  price_version: string;
+  billing_basis: 'published_openai_token_equivalent';
+}
+
+export interface ZylosProviderQuota {
+  provider: string;
+  source: string | null;
+  available: boolean;
+  authoritative: boolean;
+  observed_at: string | null;
+  status: 'fresh' | 'stale' | 'expired' | 'unknown';
+  windows: Array<{ window: string; used_pct: number; resets_at?: string }>;
+}
+
 export interface ZylosInfo {
   root: string;
   personas: Array<{
@@ -155,6 +192,12 @@ export interface ZylosInfo {
     runtime: 'claude' | 'codex' | string;
     /** Active named runtime tier from instances.json (additive; absent on old collectors). */
     runtime_profile?: string;
+    configured_model?: string;
+    configured_reasoning_effort?: string;
+    actual_model?: string;
+    actual_reasoning_effort?: string;
+    actual_model_source?: string;
+    actual_model_observed_at?: string;
     /** Last automatic/manual tier transition metadata, when recorded by Zylos. */
     runtime_profile_changed_at?: string;
     runtime_profile_change_reason?: string;
@@ -204,6 +247,13 @@ export interface ZylosInfo {
     /** age (minutes) of the oldest such waiting endpoint; drives the alert. */
     oldest_unanswered_min?: number;
   }>;
+  provider_quotas?: ZylosProviderQuota[];
+  azure_budget?: Probe<ZylosAzureBudget>;
+  runtime_policy?: {
+    chain: Array<{ profile: string; model?: string; reasoning_effort?: string }>;
+    required_model?: string;
+    required_reasoning_effort?: string;
+  };
   /** provider quota windows from provider-usage.json, when present */
   provider_windows?: Array<{
     provider: string;
@@ -390,9 +440,11 @@ export const NEWAPI_CHANNEL_STATUS: Record<number, string> = {
  */
 export interface NewApiInfo {
   reachable: boolean;
+  version?: string;
   channels: Array<{
     id: number;
     name: string;
+    models?: string[];
     type: number; // New API provider type (1=OpenAI-wire, 14=Anthropic, 24=Gemini, …)
     status: number; // see NEWAPI_CHANNEL_STATUS
     response_time_ms: number; // last test latency; 0 = never tested
@@ -814,7 +866,13 @@ export interface BlogNewsletter {
 // ---------------------------------------------------------------------------
 
 export interface AgentsView {
-  zylos: Array<ZylosInfo['personas'][number] & { host_id: HostId; console_url: string | null }>;
+  zylos_hosts?: Array<Pick<ZylosInfo, 'provider_quotas' | 'azure_budget' | 'runtime_policy'> & {
+    host_id: HostId; display_name: string; reachable: boolean; available: boolean; checked_at: string;
+  }>;
+  zylos: Array<ZylosInfo['personas'][number] & {
+    host_id: HostId; console_url: string | null;
+    host_reachable?: boolean; telemetry_available?: boolean; telemetry_checked_at?: string;
+  }>;
   herdr: Array<AgentsInfo['herdr_agents'][number] & { host_id: HostId }>;
   /** tmux loops flattened per host; per-agent token fields are attached from
    *  TokensSummary.by_agent when the loop's `agent` tag matches (absent otherwise). */

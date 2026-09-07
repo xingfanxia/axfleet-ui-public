@@ -278,7 +278,7 @@ function forgeSnapshot(now: number): HostSnapshot {
       last_inbound_at: iso(now - 41 * MIN), last_outbound_at: iso(now - 39 * MIN), unanswered: 0,
     },
     {
-      id: 'user-alice', display_name: 'user-alice', type: 'user', enabled: true,
+      id: 'user-alice', display_name: 'Alice', type: 'user', enabled: true,
       runtime: 'claude', runtime_profile: 'claude-subscription',
       tmux_session: 'claude-user-alice', tmux_alive: true, status: 'working',
       idle_min: 1, context_pct: 44, today_tokens: 1_900_000, week_tokens: 9_400_000,
@@ -286,12 +286,30 @@ function forgeSnapshot(now: number): HostSnapshot {
       unanswered: 1, oldest_unanswered_min: 8,
     },
     {
-      id: 'user-bob', display_name: 'user-bob', type: 'user', enabled: false,
+      id: 'user-bob', display_name: 'Bob', type: 'user', enabled: false,
       runtime: 'claude', runtime_profile: 'claude-subscription',
       tmux_session: 'claude-user-bob', tmux_alive: false, status: 'disabled',
       unanswered: 0,
     },
+    {
+      id: 'user-carol', display_name: 'Carol', type: 'user', enabled: true,
+      runtime: 'codex', runtime_profile: 'codex-azure', tmux_session: 'codex-carol', tmux_alive: true,
+      status: 'idle', context_pct: 23, idle_min: 5, today_tokens: 720_000, week_tokens: 3_200_000,
+      api_today_tokens: 320_000, api_today_equiv_cost_usd: 0.82,
+    },
   ];
+  for (const persona of personas) {
+    persona.runtime = 'codex';
+    if (persona.id !== 'user-carol') persona.runtime_profile = 'codex-subscription';
+    persona.configured_model = 'gpt-6-astra';
+    persona.configured_reasoning_effort = 'high';
+    if (persona.tmux_alive) {
+      persona.actual_model = 'gpt-6-astra';
+      persona.actual_reasoning_effort = 'high';
+      persona.actual_model_source = 'rollout_turn_context';
+      persona.actual_model_observed_at = iso(now - 3 * HOUR); // idle turn remains valid under fresh telemetry
+    }
+  }
 
   const factorio: FactorioInfo = {
     server_name: 'Nimbus Factory',
@@ -372,13 +390,25 @@ function forgeSnapshot(now: number): HostSnapshot {
     tailscale: probe(tailscale('forge', now), now),
     agents: probe<AgentsInfo>({
       herdr_agents: [],
-      claude_procs: 4,
-      codex_procs: 1,
+      claude_procs: 0,
+      codex_procs: 5,
       tmux_loops: [],
     }, now),
     zylos: probe<ZylosInfo>({
       root: '/home/demo/zylos',
       personas,
+      runtime_policy: { chain: [
+        { profile: 'codex-subscription', model: 'gpt-6-astra', reasoning_effort: 'high' },
+        { profile: 'codex-azure', model: 'gpt-6-astra', reasoning_effort: 'high' },
+      ], required_model: 'gpt-6-astra', required_reasoning_effort: 'high' },
+      provider_quotas: [{ provider: 'codex', source: 'codex-account-api', authoritative: true, available: true,
+        observed_at: iso(now - 45_000), status: 'fresh', windows: [{ window: '7d', used_pct: 24, resets_at: iso(now + 4.8 * DAY) }] }],
+      azure_budget: probe({ checked_at: iso(now - 10_000), month_utc: iso(now).slice(0, 7),
+        members: ['user-alice', 'user-bob', 'user-carol'], limit_microusd: 1_000_000_000,
+        reservation_microusd: 35_850_000, spent_microusd: 125_500_000, pending_microusd: 71_700_000,
+        pending_requests: 2, available_microusd: 802_800_000, can_accept_request: true,
+        price_version: 'demo-token-rate-v1', billing_basis: 'published_openai_token_equivalent',
+      }, now),
       provider_windows: [
         { provider: 'claude', window: '5h', used_pct: Math.round(metric('forge.cl5h', now, 41, 6)), resets_at: iso(now + 1.6 * HOUR) },
         { provider: 'claude', window: '7d', used_pct: 78, resets_at: iso(now + 1.4 * DAY) },
@@ -436,9 +466,9 @@ function basaltSnapshot(now: number): HostSnapshot {
   };
 
   const newapi: NewApiInfo = {
-    reachable: true,
+    reachable: true, version: 'demo-1.0.0',
     channels: [
-      { id: 1, name: 'openai-primary', type: 1, status: 1, response_time_ms: 240 },
+      { id: 1, name: 'openai-primary', type: 1, status: 1, response_time_ms: 240, models: ['gpt-6-astra', 'gpt-5.6-sol'] },
       { id: 2, name: 'anthropic-direct', type: 14, status: 1, response_time_ms: 512 },
       { id: 3, name: 'gemini-flash', type: 24, status: 3, response_time_ms: 0 },
       { id: 4, name: 'foundry-east', type: 1, status: 2, response_time_ms: 1_840 },
@@ -504,6 +534,11 @@ function basaltSnapshot(now: number): HostSnapshot {
     cpu: { cores: 8, load1: 1.8, load5: 1.7, load15: 1.5, used_pct: metric('basalt.cpu', now, 22, 8) },
     mem: { total_mb: 32_768, used_mb: 22_300, used_pct: metric('basalt.mem', now, 68, 4) },
     disks: [{ mount: '/', total_gb: 512, used_gb: 297, used_pct: 58 }],
+    storage_health: probe({ checked_at: iso(now - 12_000), healthy: true,
+      data_mount: '/data', containerd_source: '/data/demo-containerd', containerd_target: '/var/lib/demo-containerd',
+      docker_root: '/data/demo-docker', checks: [
+        { id: 'data-mount', ok: true }, { id: 'container-bind', ok: true }, { id: 'startup-guard', ok: true },
+      ], coverage: 'runtime-bind-and-startup-guards' }, now),
     services: probe<ServiceInfo[]>([
       svc('tailscaled', 'systemd', 'infra'),
       svc('docker', 'systemd', 'infra'),

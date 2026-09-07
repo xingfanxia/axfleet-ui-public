@@ -21,16 +21,24 @@ import type {
  *  absent ⇒ loops carry no token fields (the pre-token-tracker steady state). */
 export function buildAgentsView(hosts: FleetHost[], tokens?: TokensSummary): AgentsView {
   const view: AgentsView = {
-    zylos: [], herdr: [], loops: [], openclaw: [], openclaw_agents: [], openclaw_gateway: [],
+    zylos_hosts: [], zylos: [], herdr: [], loops: [], openclaw: [], openclaw_agents: [], openclaw_gateway: [],
   };
   const byAgent = new Map<string, TokensSummary['by_agent'][number]>();
   for (const a of tokens?.by_agent ?? []) byAgent.set(a.agent, a);
   for (const host of hosts) {
     const snap = host.snapshot;
     if (!snap) continue;
+    if (snap.zylos) {
+      view.zylos_hosts!.push({ host_id: host.host_id, display_name: host.display_name,
+        reachable: host.reachable, available: snap.zylos.available, checked_at: snap.zylos.checked_at,
+        provider_quotas: snap.zylos.data?.provider_quotas, azure_budget: snap.zylos.data?.azure_budget,
+        runtime_policy: snap.zylos.data?.runtime_policy });
+    }
     if (snap.zylos && snap.zylos.available && snap.zylos.data) {
       const console_url = snap.zylos.data.console_url ?? null; // per-box console deep link
-      for (const p of snap.zylos.data.personas) view.zylos.push({ ...p, host_id: host.host_id, console_url });
+      for (const p of snap.zylos.data.personas) view.zylos.push({ ...p, host_id: host.host_id, console_url,
+        host_reachable: host.reachable, telemetry_available: snap.zylos.available,
+        telemetry_checked_at: snap.zylos.checked_at });
     }
     if (snap.agents.available && snap.agents.data) {
       for (const a of snap.agents.data.herdr_agents) view.herdr.push({ ...a, host_id: host.host_id });

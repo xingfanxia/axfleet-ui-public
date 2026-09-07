@@ -10,7 +10,7 @@ import { factorioView } from '../../contracts/factorio';
 import { NEWAPI_CHANNEL_STATUS, OMNI_SYNC_STALE, omniSourceHealth } from '../../contracts/types';
 import type { BlogNewsletter, FactorioInfo, FleetHost, HostSnapshot, NewApiInfo, OmniInfo, Probe, RadarNewsletter } from '../../contracts/types';
 import { ago, estimatedCount, lowerBoundCount } from '../../lib/format';
-import { padEnd, padStart, truncate, wrapPlain } from '../ansi';
+import { padEnd, padStart, truncate, visibleWidth, wrapPlain } from '../ansi';
 import { paint, type ColorName } from '../theme';
 import type { AppState } from '../state';
 
@@ -199,19 +199,31 @@ function newapiHost(host: FleetHost, probe: Probe<NewApiInfo>, width: number): s
       paint(`newapi · ${host.display_name}`, { fg: 'dim', bold: true }) +
       paint(reachable ? '  reachable' : '  DOWN', { fg: reachable ? 'faint' : 'danger' }),
   );
+  if (probe.data.version) out.push(paint(`   version ${probe.data.version}`, { fg: 'faint' }));
+  // Columns: 3-space indent + name + 2-space gap + status(14) + latency(8). The
+  // name column sizes to the longest channel name that fits the width (with a
+  // 1-cell right margin); a name too long to fit WRAPS onto indented
+  // continuation lines rather than truncating — the channel identity is the
+  // point of this pane, so the full name survives at the 45-col phone floor as
+  // much as at 120. Status + latency stay on the first line, right of the name.
+  const nameCol = Math.max(10, width - 3 - 2 - 14 - 8 - 1);
+  const nameW = Math.min(Math.max(10, ...channels.map((c) => visibleWidth(c.name))), nameCol);
   for (const c of channels) {
     const label = NEWAPI_CHANNEL_STATUS[c.status] ?? String(c.status);
     const color: Parameters<typeof paint>[1]['fg'] = c.status === 2 ? 'danger' : c.status === 3 ? 'faint' : 'success';
     const lat = c.response_time_ms ? `${c.response_time_ms}ms` : '—';
-    // The status column is the point of this pane — on narrow widths the NAME
-    // shrinks so the status ("auto-disabled") always survives.
-    const nameW = Math.max(10, Math.min(34, width - 3 - 14 - 8 - 1));
+    const [first = '', ...rest] = wrapPlain(c.name, nameW);
     out.push(
       '   ' +
-        padEnd(truncate(c.name, nameW), nameW) +
+        padEnd(first, nameW) +
+        '  ' +
         paint(padEnd(label, 14), { fg: color }) +
         paint(padStart(lat, 8), { fg: 'faint' }),
     );
+    // continuation lines carry the rest of the name on a 2-cell hanging indent
+    // (5 spaces vs the name's 3), so a wrapped name reads as one connected block
+    for (const seg of rest) out.push('     ' + seg);
+    if (c.models) for (const seg of wrapPlain(`Models: ${c.models.join(', ') || 'none configured'}`, Math.max(1, width - 5))) out.push(paint(`     ${seg}`, { fg: 'faint' }));
   }
   if (!probe.available) {
     out.push(paint(` ⚠ probe failing — data above is last-good: ${probe.error ?? '?'}`, { fg: 'warning' }));

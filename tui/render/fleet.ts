@@ -4,6 +4,7 @@
  * numeric row that stays readable at ~45 cols (Moshi portrait).
  */
 import type { FleetHost, FleetProblem, ServiceInfo } from '../../contracts/types';
+import { storageView } from '../../contracts/storage';
 import { ago, bytesHuman, humanDuration, primaryDisk } from '../../lib/format';
 import { padEnd, padStart, truncate } from '../ansi';
 import { CARET, paint, utilColor } from '../theme';
@@ -83,6 +84,10 @@ function hostDetail(s: AppState, h: FleetHost, width: number, maxLines: number):
     .map((d) => `${d.mount} ${paint(`${Math.round(d.used_pct)}%`, { fg: utilColor(d.used_pct) })} ${paint(`${bytesHuman(d.used_gb * 2 ** 30)}/${bytesHuman(d.total_gb * 2 ** 30)}`, { fg: 'faint' })}`)
     .join('  ');
   body.push(kv(' dsk', disks, 5));
+  const storage = storageView(h, Date.now());
+  if (storage) {
+    body.push(kv(' SSD', paint(`container mounts/guards ${storage.status}${storage.data ? ` ${storage.data.checks.filter(check => check.ok).length}/${storage.data.checks.length}` : ''}`, { fg: storage.status === 'healthy' ? 'success' : 'warning' }), 5));
+  }
   // narrow: agents/mosh drop to a continuation line instead of truncating off
   const net = tailscaleParts(h);
   if (width < 60 && net.length > 1) {
@@ -94,7 +99,7 @@ function hostDetail(s: AppState, h: FleetHost, width: number, maxLines: number):
   body.push(...serviceLines(snap.services.data, inner, Math.max(1, maxLines - body.length - 3)));
   const probs = s.fleet?.problems.filter((p) => p.host_id === h.host_id) ?? [];
   for (const p of probs.slice(0, Math.max(0, maxLines - body.length - 2))) body.push(problemLine(p));
-  const meta = `up ${humanDuration(snap.os.uptime_sec)} · ${snap.os.platform} · snap ${ago(snap.taken_at)} ago`;
+  const meta = `collector ${snap.collector_version ?? '?'} · ${snap.os.platform} · snap ${ago(snap.taken_at)} ago`;
   return box(body.slice(0, Math.max(1, maxLines - 2)), width, { title: `${h.display_name} · ${truncate(h.role, 40)}`, meta });
 }
 
